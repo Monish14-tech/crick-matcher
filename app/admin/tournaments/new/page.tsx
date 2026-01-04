@@ -66,17 +66,47 @@ export default function FixtureGeneratorPage() {
                 tournament_id: tournament.id,
                 team_id: id
             }))
-            await supabase.from('tournament_teams').insert(tournamentTeams)
+            const { error: ttError } = await supabase.from('tournament_teams').insert(tournamentTeams)
+            if (ttError) throw ttError
 
             // 3. Generate Round Robin Fixtures
-            const fixtures = []
+            const fixtures: any[] = []
+
+            // Get or create a valid ground ID
+            let groundId = null
+            const { data: grounds } = await supabase.from('grounds').select('id').limit(1)
+
+            if (grounds && grounds.length > 0) {
+                groundId = grounds[0].id
+            } else {
+                // If no ground exists, create a default one
+                const { data: newGround, error: ngError } = await supabase
+                    .from('grounds')
+                    .insert([{
+                        name: 'Thondamuthur boys high school ground',
+                        location: 'Thondamuthur'
+                    }])
+                    .select()
+                    .single()
+
+                if (ngError) {
+                    console.error("Failed to create default ground:", ngError)
+                    throw new Error("No ground found and failed to create a default one. Please add a ground manually in Admin.")
+                }
+                groundId = newGround.id
+            }
+
+            if (!groundId) {
+                throw new Error("Could not determine a valid ground for matches.")
+            }
+
             for (let i = 0; i < selectedTeams.length; i++) {
                 for (let j = i + 1; j < selectedTeams.length; j++) {
                     fixtures.push({
                         tournament_id: tournament.id,
                         team_a_id: selectedTeams[i],
                         team_b_id: selectedTeams[j],
-                        ground_id: '8093db5f-466d-4767-8854-c9ed17983084', // Defualt ground or select first available
+                        ground_id: groundId,
                         match_date: new Date().toISOString().split('T')[0],
                         match_time: '10:00:00',
                         overs_type: 'T20',
@@ -85,20 +115,14 @@ export default function FixtureGeneratorPage() {
                 }
             }
 
-            // Get a valid ground ID if possible
-            const { data: grounds } = await supabase.from('grounds').select('id').limit(1)
-            if (grounds && grounds.length > 0) {
-                fixtures.forEach(f => f.ground_id = grounds[0].id)
-            }
-
             const { error: fError } = await supabase.from('matches').insert(fixtures)
             if (fError) throw fError
 
             alert(`Tournament "${tournamentName}" created with ${fixtures.length} fixtures!`)
-            router.push("/admin")
+            router.push(`/tournament?id=${tournament.id}`)
         } catch (error: any) {
-            console.error("Fixture error:", error.message)
-            alert("Error: " + error.message)
+            console.error("Tournament generation failed:", error.message)
+            alert("Error generating tournament: " + error.message)
         } finally {
             setGenerating(false)
         }
@@ -195,8 +219,8 @@ export default function FixtureGeneratorPage() {
                                     key={team.id}
                                     onClick={() => toggleTeam(team.id)}
                                     className={`p-6 rounded-3xl text-left transition-all border-2 ${isSelected
-                                            ? 'border-primary bg-primary/5 shadow-inner'
-                                            : 'border-border bg-card hover:border-primary/50'
+                                        ? 'border-primary bg-primary/5 shadow-inner'
+                                        : 'border-border bg-card hover:border-primary/50'
                                         }`}
                                 >
                                     <div className="flex items-center gap-4">

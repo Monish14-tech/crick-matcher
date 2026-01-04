@@ -135,12 +135,10 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             }
 
             // Fetch target score if 2nd innings
-            let target = null
             if (stateData?.innings_no === 2) {
                 const { data: firstScore } = await supabase.from('match_scores').select('runs_scored').eq('match_id', id).eq('is_first_innings', true).single()
                 if (firstScore) {
-                    target = firstScore.runs_scored + 1
-                    setTargetScore(target)
+                    setTargetScore(firstScore.runs_scored + 1)
                 }
             } else {
                 setTargetScore(null)
@@ -154,7 +152,7 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
                 const isAllOut = scoreData.wickets_lost >= maxWickets
                 const isOversComplete = scoreData.overs_played >= totalOvers
-                const isTargetReached = stateData?.innings_no === 2 && target !== null && scoreData.runs_scored >= target
+                const isTargetReached = stateData?.innings_no === 2 && targetScore !== null && scoreData.runs_scored >= targetScore
 
                 if (isAllOut || isOversComplete || isTargetReached || matchData.status === 'Completed') {
                     setShowInningsSummary(true)
@@ -327,9 +325,8 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         let currentStriker = activeState.striker_id
         let currentNonStriker = activeState.non_striker_id
 
-        // Calculate max wickets (Total Players - 1)
-        const totalBattingPlayers = players.filter(p => p.team_id === activeState.batting_team_id).length
-        const maxWickets = Math.max(1, totalBattingPlayers - 1) // Ensure at least 1 wicket needed
+        // Calculate max wickets (Strict professional rule: 10 wickets)
+        const maxWickets = 10
 
         if (isWicket) {
             setOutPlayerIds(prev => [...prev, activeState.striker_id!])
@@ -368,8 +365,10 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         const isInningsEnd = isAllOut || isOversComplete || isTargetReached
 
         if (isInningsEnd) {
+            let stopReason = isTargetReached ? "Target achieved" : isAllOut ? "All out" : "Overs completed"
             setShowInningsSummary(true)
-            if (activeState.innings_no === 2 || (activeState.innings_no === 1 && isTargetReached)) {
+
+            if (activeState.innings_no === 2) {
                 await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
             }
 
@@ -459,6 +458,9 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         setOutPlayerIds([])
         setShowInningsSummary(false)
         setShowSelection(true)
+
+        // Refresh data to get the new target score and player list
+        await fetchData()
     }
 
     const handleManualInningsEnd = async () => {
@@ -520,30 +522,35 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
     return (
         <div className="max-w-7xl mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-                <div>
+                <div className="w-full md:w-auto">
                     <Link href="/admin" className="inline-flex items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary mb-2">
                         <ArrowLeft className="mr-1 h-3 w-3" /> Dashboard
                     </Link>
-                    <h1 className="text-4xl font-black italic tracking-tighter uppercase">Live<span className="text-primary italic">Scorer</span></h1>
+                    <div className="flex items-center justify-between md:block">
+                        <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter uppercase">Live<span className="text-primary italic">Scorer</span></h1>
+                        <div className="md:hidden bg-red-500 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest animate-pulse flex items-center gap-1">
+                            <div className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" className="rounded-full bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 font-bold text-[10px] uppercase tracking-widest gap-2" onClick={handleUndo}>
-                        <RotateCcw className="h-3 w-3" /> Undo Last Ball
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                    <Button variant="outline" size="sm" className="flex-1 md:flex-none rounded-full bg-slate-50 border-slate-200 font-bold text-[10px] uppercase tracking-widest gap-2 h-9" onClick={handleUndo}>
+                        <RotateCcw className="h-3 w-3" /> Undo
                     </Button>
                     {!showInningsSummary && (
                         <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-widest gap-2"
+                            className="flex-1 md:flex-none rounded-full bg-blue-50 text-blue-600 border-blue-200 font-bold text-[10px] uppercase tracking-widest gap-2 h-9"
                             onClick={handleManualInningsEnd}
                         >
-                            <Zap className="h-3 w-3" /> {activeState.innings_no === 1 ? "End 1st Innings" : "End Match"}
+                            <Zap className="h-3 w-3" /> End Inn
                         </Button>
                     )}
-                    <Button variant="destructive" size="sm" className="rounded-full font-bold text-[10px] uppercase tracking-widest px-4" onClick={handleResetAllData}>
-                        Reset Details
+                    <Button variant="destructive" size="sm" className="flex-1 md:flex-none rounded-full font-bold text-[10px] uppercase tracking-widest h-9" onClick={handleResetAllData}>
+                        Reset
                     </Button>
-                    <div className="bg-red-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse flex items-center gap-2">
+                    <div className="hidden md:flex bg-red-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-white" /> Live Node
                     </div>
                 </div>
@@ -654,48 +661,71 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                             <div className="lg:col-span-8 space-y-6">
                                 {/* Active Match Status Card */}
                                 <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
-                                    <CardHeader className="p-8 border-b border-white/10 flex flex-row justify-between items-center">
+                                    <CardHeader className="p-6 md:p-8 border-b border-white/10 flex flex-row justify-between items-center">
                                         <div>
-                                            <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex flex-wrap items-center gap-2 mb-1">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-primary">Innings {activeState.innings_no}</p>
                                                 {activeState.innings_no === 2 && targetScore && (
-                                                    <span className="bg-primary/20 text-primary text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Target: {targetScore}</span>
+                                                    <span className="bg-white/10 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Target: {targetScore}</span>
                                                 )}
                                             </div>
-                                            <h2 className="text-2xl font-black">{players.find(p => p.team_id === activeState.batting_team_id)?.team_id === match.team_a.id ? match.team_a.name : match.team_b.name}</h2>
+                                            <h2 className="text-lg md:text-2xl font-black truncate max-w-[150px] md:max-w-none">
+                                                {players.find(p => p.team_id === activeState.batting_team_id)?.team_id === match.team_a.id ? match.team_a.name : match.team_b.name}
+                                            </h2>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Over {activeState.current_over}.{activeState.current_ball} • CRR: {currentCRR}</p>
-                                            <div className="text-4xl font-black italic text-primary">{score.runs}/{score.wickets}</div>
+                                            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Over {activeState.current_over}.{activeState.current_ball} • CRR: {currentCRR}</p>
+                                            <div className="text-3xl md:text-4xl font-black italic text-primary">{score.runs}/{score.wickets}</div>
                                         </div>
                                     </CardHeader>
-                                    <CardContent className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        <ActivePlayerTile
-                                            label="Striker"
-                                            name={players.find(p => p.id === activeState.striker_id)?.name || "Select..."}
-                                            icon={Swords}
-                                            active
-                                            onClick={() => setShowSelection(true)}
-                                            stats={strikerStats ? `${strikerStats.runs} (${strikerStats.balls})` : null}
-                                            subStats={strikerStats ? `SR: ${strikerStats.sr}` : null}
-                                        />
-                                        <ActivePlayerTile
-                                            label="Non-Striker"
-                                            name={players.find(p => p.id === activeState.non_striker_id)?.name || "Select..."}
-                                            icon={User}
-                                            onClick={() => setShowSelection(true)}
-                                            stats={nonStrikerStats ? `${nonStrikerStats.runs} (${nonStrikerStats.balls})` : null}
-                                            subStats={nonStrikerStats ? `SR: ${nonStrikerStats.sr}` : null}
-                                        />
-                                        <ActivePlayerTile
-                                            label="Bowler"
-                                            name={players.find(p => p.id === activeState.bowler_id)?.name || "Select..."}
-                                            icon={Target}
-                                            color="text-red-400"
-                                            onClick={() => setShowSelection(true)}
-                                            stats={bowlerStats ? `${bowlerStats.wickets}-${bowlerStats.runs}` : null}
-                                            subStats={bowlerStats ? `${bowlerStats.overs} Overs` : null}
-                                        />
+                                    <CardContent className="p-6 md:p-8 space-y-4">
+                                        {/* 2nd Innings Target Info */}
+                                        {activeState.innings_no === 2 && targetScore && (
+                                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center mb-2">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] font-black uppercase text-white/40">Target</p>
+                                                    <p className="text-xl font-black italic leading-none">{targetScore}</p>
+                                                </div>
+                                                <div className="text-center px-4 border-l border-r border-white/10">
+                                                    <p className="text-[9px] font-black uppercase text-white/40 mb-1">Status</p>
+                                                    <p className="text-[10px] font-black uppercase text-primary animate-pulse">
+                                                        {score.runs >= targetScore ? "Target Reached" : `Need ${targetScore - score.runs} from ${((totalOvers - activeState.current_over) * 6 - activeState.current_ball)} balls`}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right space-y-0.5">
+                                                    <p className="text-[9px] font-black uppercase text-primary">Required</p>
+                                                    <p className="text-xl font-black italic text-primary leading-none">{Math.max(0, targetScore - score.runs)}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-8">
+                                            <ActivePlayerTile
+                                                label="Striker"
+                                                name={players.find(p => p.id === activeState.striker_id)?.name || "Select"}
+                                                icon={Swords}
+                                                active
+                                                onClick={() => setShowSelection(true)}
+                                                stats={strikerStats ? `${strikerStats.runs} (${strikerStats.balls})` : null}
+                                                subStats={strikerStats ? `SR: ${strikerStats.sr}` : null}
+                                            />
+                                            <ActivePlayerTile
+                                                label="Non-Striker"
+                                                name={players.find(p => p.id === activeState.non_striker_id)?.name || "Select"}
+                                                icon={User}
+                                                onClick={() => setShowSelection(true)}
+                                                stats={nonStrikerStats ? `${nonStrikerStats.runs} (${nonStrikerStats.balls})` : null}
+                                                subStats={nonStrikerStats ? `SR: ${nonStrikerStats.sr}` : null}
+                                            />
+                                            <ActivePlayerTile
+                                                label="Bowler"
+                                                name={players.find(p => p.id === activeState.bowler_id)?.name || "Select"}
+                                                icon={Target}
+                                                color="text-red-400"
+                                                onClick={() => setShowSelection(true)}
+                                                stats={bowlerStats ? `${bowlerStats.wickets}-${bowlerStats.runs}` : null}
+                                                subStats={bowlerStats ? `${bowlerStats.overs} Ov` : null}
+                                            />
+                                        </div>
                                     </CardContent>
                                 </Card>
 
@@ -753,19 +783,25 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                                         </CardFooter>
                                     </Card>
                                 ) : (
-                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                                         {[0, 1, 2, 3, 4, 6].map(runs => (
-                                            <Button key={runs} variant="secondary" className="h-20 text-2xl font-black rounded-3xl hover:bg-primary hover:text-white transition-all shadow-lg" onClick={() => logBall(runs)}>
+                                            <Button key={runs} variant="secondary" className="h-16 md:h-20 text-xl md:text-2xl font-black rounded-2xl md:rounded-3xl hover:bg-primary hover:text-white transition-all shadow-lg" onClick={() => logBall(runs)}>
                                                 {runs}
                                             </Button>
                                         ))}
-                                        <Button variant="outline" className="h-20 text-xl font-black rounded-3xl border-2 border-amber-500 text-amber-600 hover:bg-amber-50" onClick={() => logBall(1, 'Wide')}>
+                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-amber-500 text-amber-600 hover:bg-amber-50" onClick={() => logBall(1, 'Wide')}>
                                             WD
                                         </Button>
-                                        <Button variant="outline" className="h-20 text-xl font-black rounded-3xl border-2 border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => logBall(1, 'No Ball')}>
+                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => logBall(1, 'No Ball')}>
                                             NB
                                         </Button>
-                                        <Button variant="destructive" className="h-20 text-xl font-black rounded-3xl lg:col-span-2 shadow-xl shadow-red-200" onClick={() => logBall(0, undefined, true)}>
+                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50" onClick={() => logBall(0, 'Bye')}>
+                                            BYE
+                                        </Button>
+                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50" onClick={() => logBall(0, 'Leg Bye')}>
+                                            LB
+                                        </Button>
+                                        <Button variant="destructive" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl col-span-2 shadow-xl shadow-red-200" onClick={() => logBall(0, undefined, true)}>
                                             WICKET
                                         </Button>
                                     </div>
@@ -872,27 +908,25 @@ function InningsSummary({ match, activeState, score, onNext, players, events, to
     const dotBallPercentage = topBowler ? ((topBowler.dots / (totalBalls || 1)) * 100).toFixed(1) : "0.0"
 
     // Calculate Reason
-    let reason = "Overs Completed"
-    let status = `Innings ${activeState.innings_no} Complete`
-    let action = isFirstInnings ? "Start Second Innings" : "Match Completed"
+    let reason = "Overs completed"
+    let status = isFirstInnings ? "Innings Break" : "Match Ended"
+    let result = ""
 
-    const totalBattingPlayers = players.filter((p: any) => p.team_id === activeState.batting_team_id).length
-    const maxWickets = Math.max(1, totalBattingPlayers - 1)
+    // Logic derived from rules
+    const maxWickets = 10
 
     if (score.wickets >= maxWickets) {
-        reason = "All Wickets Lost"
+        reason = "All out"
+        result = !isFirstInnings ? (match.team_a.name + " wins") : ""
     } else if (!isFirstInnings && targetScore && score.runs >= targetScore) {
-        reason = "Target Chased Successfully"
-        status = "Match Won"
-    } else if (!isFirstInnings && match.status === 'Completed') {
-        reason = "Target Defended"
-        status = "Match Won"
-    }
-
-    // Logic Check for Tie
-    if (!isFirstInnings && score.runs === (targetScore ? targetScore - 1 : -1) && (score.wickets >= 10 || activeState.current_over >= totalOvers)) {
-        reason = "Scores Level & Innings Ended"
-        status = "Match Tied"
+        reason = "Target achieved"
+        result = (players.find((p: any) => p.team_id === activeState.batting_team_id)?.team_id === match.team_a.id ? match.team_a.name : match.team_b.name) + " wins"
+    } else if (!isFirstInnings && targetScore) {
+        if (score.runs === targetScore - 1 && (score.wickets >= maxWickets || activeState.current_over >= totalOvers)) {
+            result = "Match is tied"
+        } else {
+            result = match.team_a.name + " wins"
+        }
     }
 
     return (
@@ -903,23 +937,30 @@ function InningsSummary({ match, activeState, score, onNext, players, events, to
                 <CardTitle className="text-5xl font-black italic uppercase tracking-tighter relative z-10">
                     {status}
                 </CardTitle>
-                <div className="space-y-2 mt-4 relative z-10">
-                    <p className="text-white/80 font-bold uppercase tracking-widest text-sm">
-                        Reason: <span className="text-primary">{reason}</span>
-                    </p>
+                <div className="space-y-4 mt-4 relative z-10">
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-white/80 font-bold uppercase tracking-widest text-sm">
+                            Reason: <span className="text-primary">{reason}</span>
+                        </p>
+                        {result && (
+                            <p className="text-2xl font-black text-primary animate-bounce mt-2 uppercase tracking-tighter">
+                                {result}
+                            </p>
+                        )}
+                    </div>
                     {isFirstInnings ? (
                         <p className="text-white/60 font-bold uppercase tracking-widest text-xs">
-                            Target Set: {score.runs + 1} Runs
+                            Target: {score.runs + 1} Runs
                         </p>
                     ) : targetScore ? (
                         <p className="text-white/60 font-bold uppercase tracking-widest text-xs">
-                            Target Was: {targetScore} Runs
+                            Goal was: {targetScore} Runs
                         </p>
                     ) : null}
                 </div>
             </CardHeader>
             <CardContent className="p-12 space-y-12">
-                <div className="grid md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                     <StatCard label="Final score" value={`${score.runs}/${score.wickets}`} />
                     <StatCard label="Overs" value={`${activeState.current_over}.${activeState.current_ball}`} />
                     <StatCard label="Run Rate" value={runRate} />
@@ -1031,12 +1072,12 @@ function ActivePlayerTile({ label, name, icon: Icon, active, color, onClick, sta
                 <p className="text-[10px] font-black uppercase tracking-widest">{label}</p>
             </div>
 
-            <p className="text-lg font-black truncate group-hover:text-primary transition-colors leading-tight mb-2">{name}</p>
+            <p className="text-base md:text-lg font-black truncate group-hover:text-primary transition-colors leading-tight mb-1 md:mb-2">{name}</p>
 
             {stats && (
                 <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-black italic tracking-tighter">{stats}</p>
-                    {subStats && <p className="text-xs font-bold opacity-60 uppercase tracking-widest">{subStats}</p>}
+                    <p className="text-xl md:text-2xl font-black italic tracking-tighter">{stats}</p>
+                    {subStats && <p className="text-[10px] md:text-xs font-bold opacity-60 uppercase tracking-widest">{subStats}</p>}
                 </div>
             )}
         </div>
