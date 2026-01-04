@@ -1,0 +1,4 @@
+# Supabase Configuration
+# Replace these with your actual Supabase project credentials
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
