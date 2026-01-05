@@ -119,6 +119,62 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
     useEffect(() => {
         fetchMatchDetails()
+
+        const channel = supabase
+            .channel(`match-${id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'match_scores',
+                    filter: `match_id=eq.${id}`
+                },
+                () => {
+                    fetchMatchDetails()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'matches',
+                    filter: `id=eq.${id}`
+                },
+                () => {
+                    fetchMatchDetails()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'match_events',
+                    filter: `match_id=eq.${id}`
+                },
+                () => {
+                    fetchMatchDetails()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'player_performances',
+                    filter: `match_id=eq.${id}`
+                },
+                () => {
+                    fetchMatchDetails()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [id])
 
     if (loading) return <div className="p-20 text-center font-bold animate-pulse text-primary italic">Loading Match Details...</div>
@@ -165,9 +221,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     <Link href="/schedule" className="inline-flex items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary mb-4">
                         <ArrowLeft className="mr-1 h-3 w-3" /> Back to Schedule
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <h1 className="text-5xl font-black italic tracking-tighter uppercase">Match <span className="text-primary">Details</span></h1>
+                            <h1 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase">Match <span className="text-primary">Details</span></h1>
                             <p className="text-sm text-muted-foreground mt-2 font-bold uppercase tracking-wider">{match.overs_type} • {match.status}</p>
                         </div>
                         {match.status === 'Completed' && winnerTeam && (
@@ -183,25 +239,25 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                 {/* Match Result Card */}
                 {match.status === 'Completed' && winnerTeam && loserTeam && (
                     <Card className="mb-8 border-none shadow-2xl rounded-[3rem] overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-                        <CardContent className="p-12">
+                        <CardContent className="p-8 md:p-12">
                             <div className="grid md:grid-cols-3 gap-8 items-center">
                                 {/* Winner */}
                                 <div className="text-center">
-                                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/20 mb-4">
-                                        <Trophy className="h-10 w-10 text-primary" />
+                                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/20 mb-4">
+                                        <Trophy className="h-8 w-8 md:h-10 md:w-10 text-primary" />
                                     </div>
-                                    <h3 className="text-3xl font-black italic mb-2">{winnerTeam.name}</h3>
-                                    <p className="text-5xl font-black text-primary mb-2">
+                                    <h3 className="text-2xl md:text-3xl font-black italic mb-2">{winnerTeam.name}</h3>
+                                    <p className="text-4xl md:text-5xl font-black text-primary mb-2">
                                         {winnerScore?.runs_scored}/{winnerScore?.wickets_lost}
                                     </p>
                                     <p className="text-sm opacity-60 font-bold">({winnerScore?.overs_played} overs)</p>
                                 </div>
 
                                 {/* Result */}
-                                <div className="text-center">
-                                    <Award className="h-16 w-16 text-primary mx-auto mb-4" />
-                                    <p className="text-xl font-black uppercase tracking-wider mb-2">Won By</p>
-                                    <p className="text-3xl font-black italic text-primary">
+                                <div className="text-center my-4 md:my-0">
+                                    <Award className="h-12 w-12 md:h-16 md:w-16 text-primary mx-auto mb-4" />
+                                    <p className="text-lg md:text-xl font-black uppercase tracking-wider mb-2">Won By</p>
+                                    <p className="text-2xl md:text-3xl font-black italic text-primary">
                                         {winnerScore?.is_first_innings
                                             ? `${runDifference} Runs`
                                             : `${wicketDifference} Wickets`
@@ -211,11 +267,11 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
                                 {/* Loser */}
                                 <div className="text-center opacity-60">
-                                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/10 mb-4">
-                                        <Shield className="h-10 w-10" />
+                                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10 mb-4">
+                                        <Shield className="h-8 w-8 md:h-10 md:w-10" />
                                     </div>
-                                    <h3 className="text-3xl font-black italic mb-2">{loserTeam.name}</h3>
-                                    <p className="text-5xl font-black mb-2">
+                                    <h3 className="text-2xl md:text-3xl font-black italic mb-2">{loserTeam.name}</h3>
+                                    <p className="text-4xl md:text-5xl font-black mb-2">
                                         {loserScore?.runs_scored}/{loserScore?.wickets_lost}
                                     </p>
                                     <p className="text-sm font-bold">({loserScore?.overs_played} overs)</p>
