@@ -79,6 +79,39 @@ export default function AdminDashboard() {
         }
     }
 
+    const handleResetAllData = async () => {
+        if (!confirm("CRITICAL WARNING: This will PERMANENTLY ERASE everything—Matches, Teams, Players, Grounds, and Scores. This action CANNOT be undone.\n\nAre you absolutely sure?")) return
+
+        setLoading(true)
+        try {
+            console.log("Starting Full System Purge...")
+            const tables = [
+                'match_events', 'player_performances', 'match_scores',
+                'match_active_state', 'tournament_teams', 'matches',
+                'players', 'teams', 'tournaments', 'grounds'
+            ]
+
+            for (const table of tables) {
+                const { error } = await supabase.from(table).delete().neq(table === 'match_active_state' ? 'match_id' : (table === 'tournament_teams' ? 'team_id' : 'id'), '00000000-0000-0000-0000-000000000000')
+                if (error) {
+                    console.error(`Error deleting from ${table}:`, error)
+                    if (error.code !== '42P01') {
+                        throw new Error(`Failed to delete from ${table}: ${error.message} (Code: ${error.code})`)
+                    }
+                }
+            }
+
+            alert("SUCCESS: System Purged. All data has been wiped.")
+            window.location.reload()
+        } catch (err: any) {
+            console.error("Critical Reset Error:", err)
+            alert("RESET FAILED: " + err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
@@ -94,6 +127,15 @@ export default function AdminDashboard() {
                         onClick={() => supabase.auth.signOut()}
                     >
                         <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        className="rounded-xl shadow-lg shadow-red-500/20 gap-2 h-9"
+                        onClick={handleResetAllData}
+                        disabled={loading}
+                    >
+                        <Trash className="h-4 w-4" /> Reset Data
                     </Button>
                     <Button size="sm" className="rounded-xl shadow-lg shadow-primary/20">
                         <Plus className="mr-2 h-4 w-4" /> System Status

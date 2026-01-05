@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
 import { motion } from "framer-motion"
+import { FeaturedMatchesCarousel } from "@/components/FeaturedMatchesCarousel"
 
 interface Match {
   id: string
@@ -96,45 +97,14 @@ export default function Home() {
               transition={{ duration: 0.8 }}
               className="relative"
             >
-              <div className="relative aspect-square md:aspect-video rounded-[3rem] overflow-hidden shadow-[0_40px_100px_-15px_rgba(0,0,0,0.3)] border-[12px] border-white">
-                <Image
-                  src="/hero_cricket_illustration_1767428355296.png"
-                  alt="Cricket Hub"
-                  fill
-                  className="object-cover"
-                  priority
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                {liveMatches.length > 0 && (
-                  <div className="absolute top-6 left-6">
-                    <div className="bg-red-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse">
-                      <div className="h-2 w-2 rounded-full bg-white" /> Live Match
-                    </div>
-                  </div>
-                )}
-
-                <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
-                  <div className="text-white space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Featured Event</p>
-                    <h3 className="text-3xl font-black italic tracking-tighter">THE PRO FINALS</h3>
-                    <p className="text-sm font-medium opacity-80">Thondamuthur boys high school ground • T20 Series</p>
-                  </div>
-                  <div className="hidden sm:flex -space-x-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="w-12 h-12 rounded-2xl border-4 border-slate-900 bg-slate-200 overflow-hidden shadow-xl">
-                        <img src={`https://i.pravatar.cc/150?u=a${i}`} alt="user" className="h-full w-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <FeaturedMatchesCarousel />
               <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
               <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
             </motion.div>
           </div>
         </div>
       </section>
+
 
       {/* Live Match Strip */}
       {liveMatches.length > 0 && (

@@ -58,6 +58,8 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
     const [score, setScore] = useState({ runs: 0, wickets: 0 })
     const [lastBowlerId, setLastBowlerId] = useState<string | null>(null)
     const [targetScore, setTargetScore] = useState<number | null>(null)
+    const [error, setError] = useState<string | null>(null)
+    const [isProcessing, setIsProcessing] = useState(false)
 
     // Toss and match start
     const [showTossSelection, setShowTossSelection] = useState(false)
@@ -82,15 +84,20 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
     const fetchData = async () => {
         setLoading(true)
-        const { data: matchData } = await supabase
-            .from('matches')
-            .select('*, team_a:teams!team_a_id(id, name), team_b:teams!team_b_id(id, name)')
-            .eq('id', id)
-            .single()
+        setError(null)
+        try {
+            const { data: matchData, error: matchError } = await supabase
+                .from('matches')
+                .select('*, team_a:teams!team_a_id(id, name), team_b:teams!team_b_id(id, name)')
+                .eq('id', id)
+                .single()
 
-        if (matchData) {
+            if (matchError) throw matchError
+            if (!matchData) throw new Error('Match not found')
+
             setMatch(matchData)
-            const { data: pData } = await supabase.from('players').select('*').in('team_id', [matchData.team_a_id, matchData.team_b_id])
+            const { data: pData, error: playersError } = await supabase.from('players').select('*').in('team_id', [matchData.team_a_id, matchData.team_b_id])
+            if (playersError) throw playersError
             setPlayers(pData || [])
 
             // Fetch active state
@@ -158,8 +165,12 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                     setShowInningsSummary(true)
                 }
             }
+        } catch (err: any) {
+            console.error('Fetch error:', err)
+            setError(err.message || 'Failed to load match data')
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
     useEffect(() => {
@@ -189,38 +200,36 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         await fetchData()
     }
 
-    const handleResetAllData = async () => {
-        if (!confirm("CRITICAL WARNING: This will PERMANENTLY ERASE everything—Matches, Teams, Players, Grounds, and Scores. This action CANNOT be undone.\n\nAre you absolutely sure?")) return
+    const handleResetMatchScore = async () => {
+        if (!confirm("Are you sure you want to reset the score for THIS match only? This will delete all events, scores, and active state for this match. Teams and players will not be affected.")) return
 
         setLoading(true)
         try {
-            console.log("Starting Full System Purge...")
-            const tables = [
-                'match_events', 'player_performances', 'match_scores',
-                'match_active_state', 'tournament_teams', 'matches',
-                'players', 'teams', 'tournaments', 'grounds'
-            ]
-
-            for (const table of tables) {
-                const { error } = await supabase.from(table).delete().neq(table === 'match_active_state' ? 'match_id' : (table === 'tournament_teams' ? 'team_id' : 'id'), '00000000-0000-0000-0000-000000000000')
-                if (error) {
-                    console.error(`Error deleting from ${table}:`, error)
-                    // If table doesn't exist, we can continue, but if it's a permission error, we should tell the user
-                    if (error.code !== '42P01') { // 42P01 is "relation does not exist"
-                        throw new Error(`Failed to delete from ${table}: ${error.message} (Code: ${error.code})`)
-                    }
-                }
+            // Delete match specific scoring data
+            const tablesToClear = ['match_events', 'match_scores', 'player_performances', 'match_active_state']
+            for (const table of tablesToClear) {
+                const { error } = await supabase.from(table).delete().eq('match_id', id)
+                if (error) console.warn(`Error clearing ${table}:`, error.message)
             }
 
-            alert("SUCCESS: System Purged. All data has been wiped.")
-            window.location.href = '/admin' // Force reload to clear stats
+            // Reset match status to allow re-start
+            const { error: matchError } = await supabase.from('matches').update({
+                status: 'Scheduled',
+                toss_winner_id: null
+            }).eq('id', id)
+
+            if (matchError) throw matchError
+
+            alert("Match score has been reset successfully. You can now restart the match.")
+            window.location.reload()
         } catch (err: any) {
-            console.error("Critical Reset Error:", err)
-            alert("RESET FAILED: " + err.message + "\n\nIMPORTANT: This error usually occurs because 'DELETE' permissions are not enabled for ALL tables in your Supabase Dashboard. Without a DELETE policy, the database blocks these requests.")
+            console.error("Match Reset Error:", err)
+            alert("Reset failed: " + err.message)
         } finally {
             setLoading(false)
         }
     }
+
 
     const handleTossComplete = async () => {
         if (!tossWinner || !battingFirst) {
@@ -291,94 +300,116 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
     }
 
     const logBall = async (runs: number, extraType?: string, isWicket: boolean = false) => {
+        if (isProcessing) return // Prevent double-click
         if (!activeState || !match) return
 
-        const isExtraBall = ['Wide', 'No Ball'].includes(extraType || '')
+        setIsProcessing(true)
+        try {
+            const isExtraBall = ['Wide', 'No Ball'].includes(extraType || '')
 
-        const newEvent = {
-            match_id: id,
-            innings_no: activeState.innings_no,
-            over_no: activeState.current_over,
-            ball_no: activeState.current_ball + (isExtraBall ? 0 : 1),
-            batter_id: activeState.striker_id,
-            bowler_id: activeState.bowler_id,
-            non_striker_id: activeState.non_striker_id,
-            runs_batter: extraType ? (['Bye', 'Leg Bye'].includes(extraType) ? runs : 0) : runs,
-            runs_extras: extraType ? (['Wide', 'No Ball'].includes(extraType) ? 1 + runs : 0) : 0,
-            extra_type: extraType,
-            wicket_type: isWicket ? 'Bowled' : null,
-            player_out_id: isWicket ? activeState.striker_id : null,
-            commentary: isWicket ? `WICKET! ${players.find(p => p.id === activeState.striker_id)?.name} is out.` :
-                extraType ? `${extraType}: ${runs} runs taken.` : `${runs} runs.`
-        }
-
-        const { data: eventData, error: eventError } = await supabase.from('match_events').insert([newEvent]).select()
-        if (eventError) return alert(eventError.message)
-
-        // Calculate new scores
-        const runsThisBall = isExtraBall ? (1 + runs) : runs
-        const newTotalRuns = score.runs + runsThisBall
-        const newTotalWickets = score.wickets + (isWicket ? 1 : 0)
-
-        let nextBall = activeState.current_ball + (isExtraBall ? 0 : 1)
-        let nextOver = activeState.current_over
-        let currentStriker = activeState.striker_id
-        let currentNonStriker = activeState.non_striker_id
-
-        // Calculate max wickets (Strict professional rule: 10 wickets)
-        const maxWickets = 10
-
-        if (isWicket) {
-            setOutPlayerIds(prev => [...prev, activeState.striker_id!])
-            currentStriker = null
-            // Only show selection if NOT all out
-            if (newTotalWickets < maxWickets) {
-                setShowSelection(true)
-            }
-        }
-
-        if (runs % 2 !== 0 && !isWicket) {
-            const temp = currentStriker
-            currentStriker = currentNonStriker
-            currentNonStriker = temp
-        }
-
-        if (nextBall >= 6) {
-            nextBall = 0
-            nextOver += 1
-            const temp = currentStriker
-            currentStriker = currentNonStriker
-            currentNonStriker = temp
-            setLastBowlerId(activeState.bowler_id)
-
-            // Only show selection if NOT match end
-            if (activeState.innings_no === 1 || (targetScore && newTotalRuns < targetScore)) {
-                setShowSelection(true)
-            }
-        }
-
-        // Check for Innings End
-        const isAllOut = newTotalWickets >= maxWickets
-        const isOversComplete = nextOver >= totalOvers
-        const isTargetReached = activeState.innings_no === 2 && targetScore !== null && newTotalRuns >= targetScore
-
-        const isInningsEnd = isAllOut || isOversComplete || isTargetReached
-
-        if (isInningsEnd) {
-            let stopReason = isTargetReached ? "Target achieved" : isAllOut ? "All out" : "Overs completed"
-            setShowInningsSummary(true)
-
-            if (activeState.innings_no === 2) {
-                await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
+            const newEvent = {
+                match_id: id,
+                innings_no: activeState.innings_no,
+                over_no: activeState.current_over,
+                ball_no: activeState.current_ball + (isExtraBall ? 0 : 1),
+                batter_id: activeState.striker_id,
+                bowler_id: activeState.bowler_id,
+                non_striker_id: activeState.non_striker_id,
+                runs_batter: extraType ? (['Bye', 'Leg Bye'].includes(extraType) ? runs : 0) : runs,
+                runs_extras: extraType ? (['Wide', 'No Ball'].includes(extraType) ? 1 + runs : 0) : 0,
+                extra_type: extraType,
+                wicket_type: isWicket ? 'Bowled' : null,
+                player_out_id: isWicket ? activeState.striker_id : null,
+                commentary: isWicket ? `WICKET! ${players.find(p => p.id === activeState.striker_id)?.name} is out.` :
+                    extraType ? `${extraType}: ${runs} runs taken.` : `${runs} runs.`
             }
 
-            // Only update scores, DO NOT update active state (balls/overs) further if innings ended
-            // This prevents "Over 20.1"
-            const oversPlayedStr = isOversComplete ? `${totalOvers}.0` :
-                isAllOut || isTargetReached ? `${activeState.current_over}.${activeState.current_ball + (isExtraBall ? 0 : 1)}` :
-                    `${nextOver}.${nextBall}`
+            const { data: eventData, error: eventError } = await supabase.from('match_events').insert([newEvent]).select()
+            if (eventError) return alert(eventError.message)
 
-            await supabase.from('match_scores').upsert({
+            // Calculate new scores
+            const runsThisBall = isExtraBall ? (1 + runs) : runs
+            const newTotalRuns = score.runs + runsThisBall
+            const newTotalWickets = score.wickets + (isWicket ? 1 : 0)
+
+            let nextBall = activeState.current_ball + (isExtraBall ? 0 : 1)
+            let nextOver = activeState.current_over
+            let currentStriker = activeState.striker_id
+            let currentNonStriker = activeState.non_striker_id
+
+            // Calculate max wickets (Strict professional rule: 10 wickets)
+            const maxWickets = 10
+
+            if (isWicket) {
+                setOutPlayerIds(prev => [...prev, activeState.striker_id!])
+                currentStriker = null
+                // Only show selection if NOT all out
+                if (newTotalWickets < maxWickets) {
+                    setShowSelection(true)
+                }
+            }
+
+            if (runs % 2 !== 0 && !isWicket) {
+                const temp = currentStriker
+                currentStriker = currentNonStriker
+                currentNonStriker = temp
+            }
+
+            if (nextBall >= 6) {
+                nextBall = 0
+                nextOver += 1
+                const temp = currentStriker
+                currentStriker = currentNonStriker
+                currentNonStriker = temp
+                setLastBowlerId(activeState.bowler_id)
+
+                // Only show selection if NOT match end
+                if (activeState.innings_no === 1 || (targetScore && newTotalRuns < targetScore)) {
+                    setShowSelection(true)
+                }
+            }
+
+            // Check for Innings End
+            const isAllOut = newTotalWickets >= maxWickets
+            const isOversComplete = nextOver >= totalOvers
+            const isTargetReached = activeState.innings_no === 2 && targetScore !== null && newTotalRuns >= targetScore
+
+            const isInningsEnd = isAllOut || isOversComplete || isTargetReached
+
+            if (isInningsEnd) {
+                let stopReason = isTargetReached ? "Target achieved" : isAllOut ? "All out" : "Overs completed"
+                setShowInningsSummary(true)
+
+                if (activeState.innings_no === 2) {
+                    await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
+                }
+
+                // Only update scores, DO NOT update active state (balls/overs) further if innings ended
+                // This prevents "Over 20.1"
+                const oversPlayedStr = isOversComplete ? `${totalOvers}.0` :
+                    isAllOut || isTargetReached ? `${activeState.current_over}.${activeState.current_ball + (isExtraBall ? 0 : 1)}` :
+                        `${nextOver}.${nextBall}`
+
+                await supabase.from('match_scores').upsert({
+                    match_id: id,
+                    team_id: activeState.batting_team_id,
+                    runs_scored: newTotalRuns,
+                    wickets_lost: newTotalWickets,
+                    overs_played: parseFloat(oversPlayedStr),
+                    is_first_innings: activeState.innings_no === 1
+                }, { onConflict: 'match_id,team_id' })
+
+                // Also update local score state locally so UI reflects it immediately
+                setScore({ runs: newTotalRuns, wickets: newTotalWickets })
+                // Add event to local list
+                setRecentEvents(prev => [eventData[0], ...prev.slice(0, 9)])
+                setEvents(prev => [eventData[0], ...prev])
+
+                return // STOP HERE
+            }
+
+            const oversPlayedStr = `${nextOver}.${nextBall}`
+            const { error: scoreErr } = await supabase.from('match_scores').upsert({
                 match_id: id,
                 team_id: activeState.batting_team_id,
                 runs_scored: newTotalRuns,
@@ -387,51 +418,38 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 is_first_innings: activeState.innings_no === 1
             }, { onConflict: 'match_id,team_id' })
 
-            // Also update local score state locally so UI reflects it immediately
+            if (scoreErr) console.error(scoreErr)
+
+            const newState = {
+                ...activeState,
+                striker_id: currentStriker,
+                non_striker_id: currentNonStriker,
+                current_ball: nextBall,
+                current_over: nextOver,
+                last_event_id: eventData[0].id
+            }
+
+            setActiveState(newState)
             setScore({ runs: newTotalRuns, wickets: newTotalWickets })
-            // Add event to local list
+            await supabase.from('match_active_state').update(newState).eq('match_id', id)
             setRecentEvents(prev => [eventData[0], ...prev.slice(0, 9)])
             setEvents(prev => [eventData[0], ...prev])
 
-            return // STOP HERE
-        }
-
-        const oversPlayedStr = `${nextOver}.${nextBall}`
-        const { error: scoreErr } = await supabase.from('match_scores').upsert({
-            match_id: id,
-            team_id: activeState.batting_team_id,
-            runs_scored: newTotalRuns,
-            wickets_lost: newTotalWickets,
-            overs_played: parseFloat(oversPlayedStr),
-            is_first_innings: activeState.innings_no === 1
-        }, { onConflict: 'match_id,team_id' })
-
-        if (scoreErr) console.error(scoreErr)
-
-        const newState = {
-            ...activeState,
-            striker_id: currentStriker,
-            non_striker_id: currentNonStriker,
-            current_ball: nextBall,
-            current_over: nextOver,
-            last_event_id: eventData[0].id
-        }
-
-        setActiveState(newState)
-        setScore({ runs: newTotalRuns, wickets: newTotalWickets })
-        await supabase.from('match_active_state').update(newState).eq('match_id', id)
-        setRecentEvents(prev => [eventData[0], ...prev.slice(0, 9)])
-        setEvents(prev => [eventData[0], ...prev])
-
-        // After updating state, check if we need to auto-switch innings or match status
-        if (isInningsEnd) {
-            if (activeState.innings_no === 1) {
-                // For 1st innings, we show summary and let user click "Next Innings"
-                // Or we could auto-switch if preferred, but usually summary is good.
-            } else {
-                // Match complete
-                await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
+            // After updating state, check if we need to auto-switch innings or match status
+            if (isInningsEnd) {
+                if (activeState.innings_no === 1) {
+                    // For 1st innings, we show summary and let user click "Next Innings"
+                    // Or we could auto-switch if preferred, but usually summary is good.
+                } else {
+                    // Match complete
+                    await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
+                }
             }
+        } catch (error: any) {
+            console.error('Ball logging error:', error)
+            alert('Failed to log ball: ' + (error.message || 'Unknown error'))
+        } finally {
+            setIsProcessing(false)
         }
     }
 
@@ -475,7 +493,29 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         }
     }
 
-    if (loading) return <div className="p-20 text-center font-bold animate-pulse text-primary italic">Synchronizing Live Node...</div>
+    if (loading) return (
+        <div className="p-20 text-center">
+            <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="font-bold text-primary italic">Synchronizing Live Node...</p>
+        </div>
+    )
+
+    if (error) return (
+        <div className="p-20 text-center">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-red-500 mb-2">Error Loading Match</h2>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <div className="flex gap-4 justify-center">
+                <Button onClick={() => fetchData()} className="rounded-xl">
+                    <RotateCcw className="mr-2 h-4 w-4" /> Retry
+                </Button>
+                <Button variant="outline" onClick={() => router.push('/admin')} className="rounded-xl">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Admin
+                </Button>
+            </div>
+        </div>
+    )
+
     if (!match || !activeState) return <div className="p-20 text-center">Match synchronization failed.</div>
 
     const battingTeam = players.filter(p => p.team_id === activeState.batting_team_id && !outPlayerIds.includes(p.id))
@@ -547,8 +587,14 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                             <Zap className="h-3 w-3" /> End Inn
                         </Button>
                     )}
-                    <Button variant="destructive" size="sm" className="flex-1 md:flex-none rounded-full font-bold text-[10px] uppercase tracking-widest h-9" onClick={handleResetAllData}>
-                        Reset
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 md:flex-none rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 font-bold text-[10px] uppercase tracking-widest gap-2 h-9"
+                        onClick={handleResetMatchScore}
+                        disabled={loading}
+                    >
+                        <Trash2 className="h-3 w-3" /> Reset Score
                     </Button>
                     <div className="hidden md:flex bg-red-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-white" /> Live Node
@@ -785,23 +831,72 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                                 ) : (
                                     <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                                         {[0, 1, 2, 3, 4, 6].map(runs => (
-                                            <Button key={runs} variant="secondary" className="h-16 md:h-20 text-xl md:text-2xl font-black rounded-2xl md:rounded-3xl hover:bg-primary hover:text-white transition-all shadow-lg" onClick={() => logBall(runs)}>
+                                            <Button
+                                                key={runs}
+                                                variant="secondary"
+                                                className={cn(
+                                                    "h-16 md:h-20 text-xl md:text-2xl font-black rounded-2xl md:rounded-3xl hover:bg-primary hover:text-white transition-all shadow-lg",
+                                                    isProcessing && "opacity-50 cursor-not-allowed"
+                                                )}
+                                                onClick={() => logBall(runs)}
+                                                disabled={isProcessing}
+                                            >
                                                 {runs}
                                             </Button>
                                         ))}
-                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-amber-500 text-amber-600 hover:bg-amber-50" onClick={() => logBall(1, 'Wide')}>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-amber-500 text-amber-600 hover:bg-amber-50",
+                                                isProcessing && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => logBall(1, 'Wide')}
+                                            disabled={isProcessing}
+                                        >
                                             WD
                                         </Button>
-                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => logBall(1, 'No Ball')}>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-orange-500 text-orange-600 hover:bg-orange-50",
+                                                isProcessing && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => logBall(1, 'No Ball')}
+                                            disabled={isProcessing}
+                                        >
                                             NB
                                         </Button>
-                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50" onClick={() => logBall(0, 'Bye')}>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50",
+                                                isProcessing && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => logBall(0, 'Bye')}
+                                            disabled={isProcessing}
+                                        >
                                             BYE
                                         </Button>
-                                        <Button variant="outline" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50" onClick={() => logBall(0, 'Leg Bye')}>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl border-2 border-slate-400 text-slate-600 hover:bg-slate-50",
+                                                isProcessing && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => logBall(0, 'Leg Bye')}
+                                            disabled={isProcessing}
+                                        >
                                             LB
                                         </Button>
-                                        <Button variant="destructive" className="h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl col-span-2 shadow-xl shadow-red-200" onClick={() => logBall(0, undefined, true)}>
+                                        <Button
+                                            variant="destructive"
+                                            className={cn(
+                                                "h-16 md:h-20 text-base md:text-xl font-black rounded-2xl md:rounded-3xl col-span-2 shadow-xl shadow-red-200",
+                                                isProcessing && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => logBall(0, undefined, true)}
+                                            disabled={isProcessing}
+                                        >
                                             WICKET
                                         </Button>
                                     </div>
@@ -907,25 +1002,31 @@ function InningsSummary({ match, activeState, score, onNext, players, events, to
     const topBowler = Object.values(bowlerStats).sort((a: any, b: any) => b.wickets - a.wickets || a.runs - b.runs)[0] as any
     const dotBallPercentage = topBowler ? ((topBowler.dots / (totalBalls || 1)) * 100).toFixed(1) : "0.0"
 
-    // Calculate Reason
-    let reason = "Overs completed"
-    let status = isFirstInnings ? "Innings Break" : "Match Ended"
-    let result = ""
-
     // Logic derived from rules
     const maxWickets = 10
+    const battingTeamName = activeState.batting_team_id === match.team_a_id ? match.team_a.name : match.team_b.name
+    const bowlingTeamName = activeState.batting_team_id === match.team_a_id ? match.team_b.name : match.team_a.name
+    const status = isFirstInnings ? "Innings Break" : "Match Ended"
+    let result = ""
+    let reason = "Overs completed"
+    if (score.wickets >= maxWickets) reason = "All out"
+    else if (!isFirstInnings && targetScore && score.runs >= targetScore) reason = "Target achieved"
 
-    if (score.wickets >= maxWickets) {
-        reason = "All out"
-        result = !isFirstInnings ? (match.team_a.name + " wins") : ""
-    } else if (!isFirstInnings && targetScore && score.runs >= targetScore) {
-        reason = "Target achieved"
-        result = (players.find((p: any) => p.team_id === activeState.batting_team_id)?.team_id === match.team_a.id ? match.team_a.name : match.team_b.name) + " wins"
-    } else if (!isFirstInnings && targetScore) {
-        if (score.runs === targetScore - 1 && (score.wickets >= maxWickets || activeState.current_over >= totalOvers)) {
-            result = "Match is tied"
-        } else {
-            result = match.team_a.name + " wins"
+    if (!isFirstInnings && targetScore) {
+        if (score.runs >= targetScore) {
+            // Batting team reached target - they won
+            const wicketsLeft = maxWickets - score.wickets
+            result = `${battingTeamName} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}`
+        } else if (score.wickets >= maxWickets || totalBalls >= totalOvers * 6) {
+            // Innings ended before reaching target
+            if (score.runs === targetScore - 1) {
+                // Exact tie
+                result = "Match Tied"
+            } else {
+                // Bowling team won (batting team failed to reach target)
+                const runsDiff = targetScore - score.runs
+                result = `${bowlingTeamName} won by ${runsDiff} run${runsDiff > 1 ? 's' : ''}`
+            }
         }
     }
 
@@ -967,61 +1068,81 @@ function InningsSummary({ match, activeState, score, onNext, players, events, to
                     <StatCard label="Extras" value={currentInningsEvents.reduce((sum: number, e: any) => sum + e.runs_extras, 0).toString()} />
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-12">
-                    {/* Batsman Analysis */}
-                    <div className="p-10 bg-white/5 rounded-[2.5rem] border border-white/10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <PieChart className="h-24 w-24 text-primary" />
+                {/* Scorecard Tables */}
+                <div className="space-y-8">
+                    {/* Batting Scorecard */}
+                    <div className="bg-white/5 rounded-[2rem] border border-white/10 overflow-hidden">
+                        <div className="p-6 border-b border-white/10 bg-white/5">
+                            <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                <Swords className="h-4 w-4 text-primary" /> Batting Scorecard
+                            </h4>
                         </div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white/40 mb-6 flex items-center gap-2">
-                            <Swords className="h-4 w-4 text-primary" /> Batter Analysis
-                        </h4>
-                        {topBatter ? (
-                            <div className="relative z-10 space-y-4">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-primary mb-1">Impact Player</p>
-                                    <p className="text-3xl font-black italic tracking-tight">{topBatter.name}</p>
-                                </div>
-                                <div className="flex items-end gap-6">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-white/40">Aggression Rate</p>
-                                        <p className="text-4xl font-black italic text-primary">{aggressionRate}%</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-white/40">Total Runs</p>
-                                        <p className="text-4xl font-black italic text-white">{topBatter.runs}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : <p className="opacity-40 italic">Innings data pending...</p>}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="text-[10px] font-black uppercase tracking-widest text-white/40 border-b border-white/10">
+                                    <tr>
+                                        <th className="p-4">Batter</th>
+                                        <th className="p-4 text-center">R</th>
+                                        <th className="p-4 text-center">B</th>
+                                        <th className="p-4 text-center">4s/6s</th>
+                                        <th className="p-4 text-center">SR</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {Object.values(batterStats).map((b: any, i: number) => (
+                                        <tr key={i} className="hover:bg-white/5 transition-colors">
+                                            <td className="p-4 text-sm font-bold">{b.name}</td>
+                                            <td className="p-4 text-center text-primary font-black">{b.runs}</td>
+                                            <td className="p-4 text-center text-sm opacity-60">{b.balls}</td>
+                                            <td className="p-4 text-center text-[10px] font-black">{b.boundaries}</td>
+                                            <td className="p-4 text-center text-[10px] font-black opacity-80">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "0.0"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    {/* Bowler Analysis */}
-                    <div className="p-10 bg-white/5 rounded-[2.5rem] border border-white/10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <BarChart3 className="h-24 w-24 text-primary" />
+                    {/* Bowling Scorecard */}
+                    <div className="bg-white/5 rounded-[2rem] border border-white/10 overflow-hidden">
+                        <div className="p-6 border-b border-white/10 bg-white/5">
+                            <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                <Target className="h-4 w-4 text-primary" /> Bowling Scorecard
+                            </h4>
                         </div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white/40 mb-6 flex items-center gap-2">
-                            <Target className="h-4 w-4 text-primary" /> Bowling Intelligence
-                        </h4>
-                        {topBowler ? (
-                            <div className="relative z-10 space-y-4">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-primary mb-1">Key Disciplinarian</p>
-                                    <p className="text-3xl font-black italic tracking-tight">{topBowler.name}</p>
-                                </div>
-                                <div className="flex items-end gap-6">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-white/40">Dot Control</p>
-                                        <p className="text-4xl font-black italic text-primary">{dotBallPercentage}%</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-white/40">Wickets</p>
-                                        <p className="text-4xl font-black italic text-white">{topBowler.wickets}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : <p className="opacity-40 italic">Bowling data pending...</p>}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="text-[10px] font-black uppercase tracking-widest text-white/40 border-b border-white/10">
+                                    <tr>
+                                        <th className="p-4">Bowler</th>
+                                        <th className="p-4 text-center">O</th>
+                                        <th className="p-4 text-center">R</th>
+                                        <th className="p-4 text-center">W</th>
+                                        <th className="p-4 text-center">Dots</th>
+                                        <th className="p-4 text-center">Eco</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {Object.values(bowlerStats).map((bw: any, i: number) => {
+                                        const bowlerEvents = currentInningsEvents.filter((e: any) => e.bowler_id === Object.keys(bowlerStats)[i]);
+                                        const balls = bowlerEvents.filter((e: any) => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length;
+                                        const overs = Math.floor(balls / 6) + '.' + (balls % 6);
+                                        const economy = balls > 0 ? (bw.runs / (balls / 6)).toFixed(2) : "0.00";
+
+                                        return (
+                                            <tr key={i} className="hover:bg-white/5 transition-colors">
+                                                <td className="p-4 text-sm font-bold">{bw.name}</td>
+                                                <td className="p-4 text-center text-sm opacity-60">{overs}</td>
+                                                <td className="p-4 text-center text-sm font-bold">{bw.runs}</td>
+                                                <td className="p-4 text-center text-primary font-black">{bw.wickets}</td>
+                                                <td className="p-4 text-center text-[10px] font-black opacity-60">{bw.dots}</td>
+                                                <td className="p-4 text-center text-[10px] font-black opacity-80">{economy}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </CardContent>
@@ -1043,7 +1164,7 @@ function InningsSummary({ match, activeState, score, onNext, players, events, to
                     </Button>
                 )}
             </CardFooter>
-        </Card>
+        </Card >
     )
 }
 
