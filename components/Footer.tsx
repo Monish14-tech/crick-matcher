@@ -1,4 +1,5 @@
 import { Trophy, Github, Twitter, Linkedin, Heart } from "lucide-react"
+import Link from "next/link"
 
 export default function Footer() {
     return (
@@ -27,18 +28,18 @@ export default function Footer() {
                     <div>
                         <h4 className="font-bold mb-6 text-lg">Platform</h4>
                         <ul className="space-y-4 text-slate-400 font-medium">
-                            <li><a href="/schedule" className="hover:text-primary transition-colors">Schedule</a></li>
-                            <li><a href="/teams" className="hover:text-primary transition-colors">Team Roster</a></li>
-                            <li><a href="/tournament" className="hover:text-primary transition-colors">Tournaments</a></li>
+                            <li><Link href="/schedule" className="hover:text-primary transition-colors">Schedule</Link></li>
+                            <li><Link href="/teams" className="hover:text-primary transition-colors">Team Roster</Link></li>
+                            <li><Link href="/tournament" className="hover:text-primary transition-colors">Tournaments</Link></li>
                         </ul>
                     </div>
 
                     <div>
                         <h4 className="font-bold mb-6 text-lg">Admin</h4>
                         <ul className="space-y-4 text-slate-400 font-medium">
-                            <li><a href="/login" className="hover:text-primary transition-colors">Dashboard Login</a></li>
-                            <li><a href="/admin/matches/new" className="hover:text-primary transition-colors">Fixture Manager</a></li>
-                            <li><a href="/admin/teams" className="hover:text-primary transition-colors">Squad Control</a></li>
+                            <li><Link href="/login" className="hover:text-primary transition-colors">Dashboard Login</Link></li>
+                            <li><Link href="/admin/matches/new" className="hover:text-primary transition-colors">Fixture Manager</Link></li>
+                            <li><Link href="/admin/teams" className="hover:text-primary transition-colors">Squad Control</Link></li>
                         </ul>
                     </div>
 

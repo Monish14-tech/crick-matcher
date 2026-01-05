@@ -33,12 +33,13 @@ export default function Home() {
         setLoading(false)
         return
       }
-      const { data } = await supabase
+
+      const { data: matchData } = await supabase
         .from('matches')
         .select(`
           *,
-          team_a:teams!team_a_id(name),
-          team_b:teams!team_b_id(name),
+          team_a:teams!team_a_id(id, name),
+          team_b:teams!team_b_id(id, name),
           ground:grounds(name)
         `)
         .in('status', ['Scheduled', 'Live'])
@@ -46,7 +47,21 @@ export default function Home() {
         .order('match_date', { ascending: true })
         .limit(6)
 
-      setMatches(data || [])
+      if (matchData) {
+        // Fetch scores for these matches
+        const matchIds = matchData.map((m: any) => m.id)
+        const { data: scoreData } = await supabase
+          .from('match_scores')
+          .select('*')
+          .in('match_id', matchIds)
+
+        const matchesWithScores = (matchData || []).map((m: any) => ({
+          ...m,
+          scores: scoreData?.filter((s: any) => s.match_id === m.id) || []
+        }))
+        setMatches(matchesWithScores as any)
+      }
+
       setLoading(false)
     }
     fetchMatches()
@@ -125,26 +140,31 @@ export default function Home() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {liveMatches.map(match => (
-                  <Link key={match.id} href={`/matches/${match.id}`}>
-                    <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2rem] overflow-hidden group hover:scale-[1.02] transition-transform">
-                      <CardContent className="p-8 flex items-center justify-between gap-8">
-                        <div className="flex-1 text-center">
-                          <p className="text-xl font-black tracking-tighter">{match.team_a.name}</p>
-                          <p className="text-[10px] font-black uppercase opacity-40 mt-1">SQUAD A</p>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="px-4 py-1 bg-red-500 rounded-full text-[10px] font-black uppercase animate-pulse">LIVE</div>
-                          <div className="text-4xl font-black italic opacity-20">VS</div>
-                        </div>
-                        <div className="flex-1 text-center">
-                          <p className="text-xl font-black tracking-tighter">{match.team_b.name}</p>
-                          <p className="text-[10px] font-black uppercase opacity-40 mt-1">SQUAD B</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
+                {liveMatches.map(match => {
+                  const scoreA = (match as any).scores?.find((s: any) => s.team_id === (match as any).team_a_id)
+                  const scoreB = (match as any).scores?.find((s: any) => s.team_id === (match as any).team_b_id)
+
+                  return (
+                    <Link key={match.id} href={`/matches/${match.id}`}>
+                      <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2rem] overflow-hidden group hover:scale-[1.02] transition-transform">
+                        <CardContent className="p-8 flex items-center justify-between gap-8">
+                          <div className="flex-1 text-center">
+                            <p className="text-xl font-black tracking-tighter">{(match as any).team_a.name}</p>
+                            <p className="text-2xl font-black text-primary mt-1">{scoreA ? `${scoreA.runs_scored}/${scoreA.wickets_lost}` : '0/0'}</p>
+                          </div>
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="px-4 py-1 bg-red-500 rounded-full text-[10px] font-black uppercase animate-pulse">LIVE</div>
+                            <div className="text-4xl font-black italic opacity-20">VS</div>
+                          </div>
+                          <div className="flex-1 text-center">
+                            <p className="text-xl font-black tracking-tighter">{(match as any).team_b.name}</p>
+                            <p className="text-2xl font-black text-primary mt-1">{scoreB ? `${scoreB.runs_scored}/${scoreB.wickets_lost}` : '0/0'}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           </section>
@@ -174,7 +194,21 @@ export default function Home() {
 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {[1, 2, 3].map(i => <div key={i} className="h-64 bg-muted animate-pulse rounded-[2.5rem]" />)}
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex flex-col gap-4 p-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
+                    <div className="h-4 w-24 bg-slate-100 animate-pulse rounded-full" />
+                    <div className="flex justify-between items-center py-4">
+                      <div className="h-16 w-16 bg-slate-100 animate-pulse rounded-2xl" />
+                      <div className="h-4 w-8 bg-slate-100 animate-pulse rounded-full" />
+                      <div className="h-16 w-16 bg-slate-100 animate-pulse rounded-2xl" />
+                    </div>
+                    <div className="h-px w-full bg-slate-100" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-32 bg-slate-100 animate-pulse rounded-full" />
+                      <div className="h-3 w-48 bg-slate-100 animate-pulse rounded-full" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : scheduledMatches.length > 0 ? (
               <motion.div
@@ -198,19 +232,62 @@ export default function Home() {
                       teamB={match.team_b?.name || "Team B"}
                       ground={match.ground?.name || "Stadium"}
                       date={new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                      time={match.match_time.slice(0, 5)}
+                      time={match.match_time?.slice(0, 5) || "00:00"}
                       format={match.overs_type}
                     />
                   </motion.div>
                 ))}
               </motion.div>
             ) : (
-              <div className="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground font-bold italic">No upcoming encounters fixed yet.</p>
-                <Button className="mt-8 rounded-2xl font-black h-12 shadow-xl" asChild>
-                  <Link href="/admin/matches/new">Schedule Match</Link>
-                </Button>
+              <div className="space-y-12">
+                <div className="text-center py-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" aria-hidden="true" />
+                  <p className="text-muted-foreground font-bold italic">No upcoming encounters fixed yet.</p>
+                  <Button className="mt-8 rounded-2xl font-black h-12 shadow-xl" asChild>
+                    <Link href="/admin/matches/new" aria-label="Schedule a new match">Schedule Match</Link>
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-0.5 flex-grow bg-slate-100" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sample Preview</span>
+                    <div className="h-0.5 flex-grow bg-slate-100" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 opacity-60">
+                    <MatchCard
+                      id="sample-1"
+                      teamA="Titans XI"
+                      teamB="Royal Strikers"
+                      ground="Standard Arena"
+                      date="24 Jan"
+                      time="10:00"
+                      format="T20"
+                    />
+                    <div className="hidden md:block">
+                      <MatchCard
+                        id="sample-2"
+                        teamA="Warriors CC"
+                        teamB="Lions United"
+                        ground="Green Park"
+                        date="25 Jan"
+                        time="14:30"
+                        format="T10"
+                      />
+                    </div>
+                    <div className="hidden md:block">
+                      <MatchCard
+                        id="sample-3"
+                        teamA="Desert Storm"
+                        teamB="Coastal Kings"
+                        ground="Ocean view"
+                        date="26 Jan"
+                        time="09:00"
+                        format="ODI"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

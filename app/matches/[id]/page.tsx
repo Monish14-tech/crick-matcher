@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, use } from "react"
-import { Calendar, MapPin, Clock, ArrowLeft, Trophy, Users, Shield, Zap, TrendingUp, Activity, Target, History, ChevronRight, Award, BarChart3, PieChart } from "lucide-react"
+import { Calendar, MapPin, Clock, ArrowLeft, Trophy, Users, Shield, Zap, TrendingUp, Activity, Target, History, ChevronRight, Award, BarChart3, PieChart, Swords, Flag } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
@@ -9,6 +9,7 @@ import { SupabaseError } from "@/components/SupabaseError"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
+// --- TYPES ---
 interface Team {
     id: string
     name: string
@@ -16,31 +17,12 @@ interface Team {
     logo_url?: string
 }
 
-interface Ground {
-    id: string
-    name: string
-    location: string
-}
-
 interface MatchScore {
     team_id: string
     runs_scored: number
     wickets_lost: number
-    overs_played: number
+    overs_played: number // This stores it as X.Y
     is_first_innings: boolean
-}
-
-interface PlayerPerformance {
-    player_id: string
-    player_name: string
-    team_id: string
-    runs: number
-    balls_faced: number
-    fours: number
-    sixes: number
-    wickets: number
-    runs_conceded: number
-    overs_bowled: number
 }
 
 interface Match {
@@ -50,9 +32,21 @@ interface Match {
     overs_type: string
     status: string
     winner_id?: string
+    toss_winner_id?: string
     team_a: Team
     team_b: Team
-    ground: Ground
+    ground: { name: string; location: string }
+}
+
+// --- UTILS ---
+const formatOvers = (balls: number) => {
+    return Math.floor(balls / 6) + "." + (balls % 6)
+}
+
+const getBallsFromDecimal = (decimal: number) => {
+    const overInt = Math.floor(decimal)
+    const ballInt = Math.round((decimal - overInt) * 10)
+    return (overInt * 6) + ballInt
 }
 
 export default function MatchDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -61,472 +55,301 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
     const [match, setMatch] = useState<Match | null>(null)
     const [scores, setScores] = useState<MatchScore[]>([])
-    const [playerPerformances, setPlayerPerformances] = useState<PlayerPerformance[]>([])
     const [events, setEvents] = useState<any[]>([])
+    const [players, setPlayers] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchMatchDetails = async () => {
+    const fetchData = async () => {
         setLoading(true)
+        try {
+            const { data: m } = await supabase.from('matches').select('*, team_a:teams!team_a_id(*), team_b:teams!team_b_id(*), ground:grounds(*)').eq('id', id).single()
+            if (m) setMatch(m)
 
-        // Fetch match details
-        const { data: matchData } = await supabase
-            .from('matches')
-            .select(`
-                *,
-                team_a:teams!team_a_id(id, name, captain_name, logo_url),
-                team_b:teams!team_b_id(id, name, captain_name, logo_url),
-                ground:grounds(id, name, location)
-            `)
-            .eq('id', id)
-            .single()
+            const { data: s } = await supabase.from('match_scores').select('*').eq('match_id', id)
+            setScores(s || [])
 
-        if (matchData) {
-            setMatch(matchData)
+            const { data: e } = await supabase.from('match_events').select('*').eq('match_id', id).order('created_at', { ascending: true })
+            setEvents(e || [])
 
-            // Fetch scores
-            const { data: scoresData } = await supabase
-                .from('match_scores')
-                .select('*')
-                .eq('match_id', id)
-            setScores(scoresData || [])
-
-            // Fetch player performances with player names
-            const { data: perfData } = await supabase
-                .from('player_performances')
-                .select(`
-                    *,
-                    player:players(name)
-                `)
-                .eq('match_id', id)
-
-            const formattedPerf = perfData?.map((p: any) => ({
-                ...p,
-                player_name: p.player?.name || 'Unknown'
-            })) || []
-            setPlayerPerformances(formattedPerf)
-
-            // Fetch match events
-            const { data: eventsData } = await supabase
-                .from('match_events')
-                .select('*')
-                .eq('match_id', id)
-                .order('created_at', { ascending: false })
-            setEvents(eventsData || [])
-        }
-
+            const { data: p } = await supabase.from('players').select('*').in('team_id', [m?.team_a_id, m?.team_b_id])
+            setPlayers(p || [])
+        } catch (err) { console.error(err) }
         setLoading(false)
     }
 
     useEffect(() => {
-        fetchMatchDetails()
-
-        const channel = supabase
-            .channel(`match-detail-${id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'match_scores',
-                    filter: `match_id=eq.${id}`
-                },
-                () => fetchMatchDetails()
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'matches',
-                    filter: `id=eq.${id}`
-                },
-                () => fetchMatchDetails()
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'match_events',
-                    filter: `match_id=eq.${id}`
-                },
-                () => fetchMatchDetails()
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'player_performances',
-                    filter: `match_id=eq.${id}`
-                },
-                () => fetchMatchDetails()
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
+        fetchData()
+        const channel = supabase.channel(`match-${id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${id}` }, () => fetchData()).subscribe()
+        return () => { supabase.removeChannel(channel) }
     }, [id])
 
-    if (loading) return <div className="p-20 text-center font-bold animate-pulse text-primary italic">Loading Match Details...</div>
-    if (!match) return <div className="p-20 text-center">Match not found.</div>
+    if (loading || !match) return <div className="p-20 text-center font-black animate-pulse text-primary italic underline uppercase tracking-tighter text-4xl">Syncing Match Core...</div>
 
     const teamAScore = scores.find(s => s.team_id === match.team_a.id)
     const teamBScore = scores.find(s => s.team_id === match.team_b.id)
 
-    // Determine Winner Logic (Robust Fallback)
-    let winnerId = match.winner_id
+    // Result Calculation (Standardized by User Rule 5)
+    let resultMessage = ""
+    if (match.status === 'Completed') {
+        const firstInnings = scores.find(s => s.is_first_innings)
+        const secondInnings = scores.find(s => !s.is_first_innings)
 
-    if (!winnerId && match.status === 'Completed' && teamAScore && teamBScore) {
-        // Fallback calculation if winner_id wasn't saved
-        if (teamAScore.runs_scored > teamBScore.runs_scored) winnerId = match.team_a.id
-        else if (teamBScore.runs_scored > teamAScore.runs_scored) winnerId = match.team_b.id
-        // Handle Tie or Super Over logic here if needed (defaults to null/draw)
+        if (firstInnings && secondInnings) {
+            const target = firstInnings.runs_scored + 1
+            const battingTeamName = match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name
+            const bowlingTeamName = match.winner_id === match.team_a.id ? match.team_b.name : match.team_a.name
+
+            if (secondInnings.runs_scored >= target) {
+                resultMessage = `${battingTeamName} won by ${10 - secondInnings.wickets_lost} wickets`
+            } else if (secondInnings.runs_scored < firstInnings.runs_scored) {
+                resultMessage = `${match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name} won by ${firstInnings.runs_scored - secondInnings.runs_scored} runs`
+            } else {
+                resultMessage = "Match Tied"
+            }
+        }
+    } else if (match.status === 'Live') {
+        const liveInnings = events[events.length - 1]?.innings_no || 1
+        resultMessage = `Innings ${liveInnings} in Progress`
+    } else {
+        resultMessage = "Match Scheduled"
     }
 
-    const winnerTeam = winnerId === match.team_a.id ? match.team_a : winnerId === match.team_b.id ? match.team_b : null
-    const loserTeam = winnerId === match.team_a.id ? match.team_b : winnerId === match.team_b.id ? match.team_a : null
-
-    const winnerScore = winnerId === match.team_a.id ? teamAScore : teamBScore
-    const loserScore = winnerId === match.team_a.id ? teamBScore : teamAScore
-
-    const runDifference = winnerScore && loserScore ? winnerScore.runs_scored - loserScore.runs_scored : 0
-    const wicketDifference = loserScore ? 10 - loserScore.wickets_lost : 0
-
-    // Calculate match statistics
-    const totalRuns = (teamAScore?.runs_scored || 0) + (teamBScore?.runs_scored || 0)
-    const totalWickets = (teamAScore?.wickets_lost || 0) + (teamBScore?.wickets_lost || 0)
-    const totalBalls = events.length
+    const totalRuns = scores.reduce((sum, s) => sum + s.runs_scored, 0)
+    const totalWickets = scores.reduce((sum, s) => sum + s.wickets_lost, 0)
     const totalFours = events.filter(e => e.runs_batter === 4).length
     const totalSixes = events.filter(e => e.runs_batter === 6).length
 
-    // Top performers
-    const topBatsman = playerPerformances.sort((a, b) => b.runs - a.runs)[0]
-    const topBowler = playerPerformances.sort((a, b) => b.wickets - a.wickets)[0]
-
-    // Batting performances by team
-    const teamABatters = playerPerformances.filter(p => p.team_id === match.team_a.id && p.balls_faced > 0).sort((a, b) => b.runs - a.runs)
-    const teamBBatters = playerPerformances.filter(p => p.team_id === match.team_b.id && p.balls_faced > 0).sort((a, b) => b.runs - a.runs)
-
-    // Bowling performances by team
-    const teamABowlers = playerPerformances.filter(p => p.team_id === match.team_a.id && p.overs_bowled > 0).sort((a, b) => b.wickets - a.wickets)
-    const teamBBowlers = playerPerformances.filter(p => p.team_id === match.team_b.id && p.overs_bowled > 0).sort((a, b) => b.wickets - a.wickets)
-
-    const totalOvers = match.overs_type === 'T10' ? 10 : match.overs_type === 'T20' ? 20 : match.overs_type === '50 Overs' ? 50 : 20
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <Link href="/schedule" className="inline-flex items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary mb-4">
-                        <ArrowLeft className="mr-1 h-3 w-3" /> Back to Schedule
-                    </Link>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase">Match <span className="text-primary">Details</span></h1>
-                            <p className="text-sm text-muted-foreground mt-2 font-bold uppercase tracking-wider">{match.overs_type} • {match.status}</p>
-                        </div>
-                        {match.status === 'Completed' && winnerTeam && (
-                            <div className="bg-primary/10 border-2 border-primary rounded-3xl px-8 py-4 text-center">
-                                <Trophy className="h-8 w-8 text-primary mx-auto mb-2" />
-                                <p className="text-xs font-black uppercase tracking-widest text-primary mb-1">Winner</p>
-                                <p className="text-2xl font-black italic">{winnerTeam.name}</p>
-                            </div>
-                        )}
+        <div className="min-h-screen bg-slate-50">
+            <div className="max-w-6xl mx-auto px-4 py-12">
+                <Link href="/schedule" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary mb-8 flex items-center gap-2">
+                    <ArrowLeft className="h-3 w-3" /> BACK TO SCHEDULE
+                </Link>
+
+                <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-12">
+                    <div>
+                        <h1 className="text-5xl md:text-8xl font-black italic tracking-tighter uppercase leading-none">MATCH <span className="text-primary italic">CENTRE</span></h1>
+                        <p className="text-sm font-bold text-muted-foreground mt-4 uppercase tracking-widest flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-primary" /> {match.overs_type} • {match.status}
+                        </p>
                     </div>
-                </div>
-
-                {/* Match Result Card */}
-                {match.status === 'Completed' && winnerTeam && loserTeam && (
-                    <Card className="mb-8 border-none shadow-2xl rounded-[3rem] overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-                        <CardContent className="p-8 md:p-12">
-                            <div className="grid md:grid-cols-3 gap-8 items-center">
-                                {/* Winner */}
-                                <div className="text-center">
-                                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/20 mb-4">
-                                        <Trophy className="h-8 w-8 md:h-10 md:w-10 text-primary" />
-                                    </div>
-                                    <h3 className="text-2xl md:text-3xl font-black italic mb-2">{winnerTeam.name}</h3>
-                                    <p className="text-4xl md:text-5xl font-black text-primary mb-2">
-                                        {winnerScore?.runs_scored}/{winnerScore?.wickets_lost}
-                                    </p>
-                                    <p className="text-sm opacity-60 font-bold">({winnerScore?.overs_played} overs)</p>
-                                </div>
-
-                                {/* Result */}
-                                <div className="text-center my-4 md:my-0">
-                                    <Award className="h-12 w-12 md:h-16 md:w-16 text-primary mx-auto mb-4" />
-                                    <p className="text-lg md:text-xl font-black uppercase tracking-wider mb-2">Won By</p>
-                                    <p className="text-2xl md:text-3xl font-black italic text-primary">
-                                        {winnerScore?.is_first_innings
-                                            ? `${runDifference} Runs`
-                                            : `${wicketDifference} Wickets`
-                                        }
-                                    </p>
-                                </div>
-
-                                {/* Loser */}
-                                <div className="text-center opacity-60">
-                                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10 mb-4">
-                                        <Shield className="h-8 w-8 md:h-10 md:w-10" />
-                                    </div>
-                                    <h3 className="text-2xl md:text-3xl font-black italic mb-2">{loserTeam.name}</h3>
-                                    <p className="text-4xl md:text-5xl font-black mb-2">
-                                        {loserScore?.runs_scored}/{loserScore?.wickets_lost}
-                                    </p>
-                                    <p className="text-sm font-bold">({loserScore?.overs_played} overs)</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Match Info */}
-                <div className="grid md:grid-cols-3 gap-6 mb-8">
-                    <Card className="rounded-[2rem] border-2 hover:border-primary/30 transition-all">
-                        <CardContent className="p-6 flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-                                <Calendar className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date</p>
-                                <p className="text-lg font-black">{new Date(match.match_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-[2rem] border-2 hover:border-primary/30 transition-all">
-                        <CardContent className="p-6 flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-                                <Clock className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</p>
-                                <p className="text-lg font-black">{match.match_time}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-[2rem] border-2 hover:border-primary/30 transition-all">
-                        <CardContent className="p-6 flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-                                <MapPin className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Venue</p>
-                                <p className="text-lg font-black truncate">{match.ground.name}</p>
-                                <p className="text-xs text-muted-foreground">{match.ground.location}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Match Statistics */}
-                <Card className="mb-8 rounded-[3rem] border-none shadow-xl">
-                    <CardHeader className="border-b bg-slate-50">
-                        <div className="flex items-center gap-3">
-                            <BarChart3 className="h-6 w-6 text-primary" />
-                            <CardTitle className="text-2xl font-black italic">Match Statistics</CardTitle>
+                    {match.status === 'Completed' && (
+                        <div className="bg-primary text-white p-10 rounded-[3rem] shadow-2xl shadow-primary/30 text-center border-b-8 border-primary-dark">
+                            <Trophy className="h-12 w-12 mx-auto mb-2" />
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Final Result</p>
+                            <p className="text-3xl font-black italic leading-tight uppercase">{resultMessage}</p>
                         </div>
-                    </CardHeader>
-                    <CardContent className="p-8">
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                            <StatBox label="Total Runs" value={totalRuns.toString()} />
-                            <StatBox label="Total Wickets" value={totalWickets.toString()} />
-                            <StatBox label="Total Balls" value={totalBalls.toString()} />
-                            <StatBox label="Fours" value={totalFours.toString()} />
-                            <StatBox label="Sixes" value={totalSixes.toString()} />
+                    )}
+                </div>
+
+                {/* Score Summary Grid */}
+                <div className="grid md:grid-cols-2 gap-8 mb-12">
+                    <SummaryCard team={match.team_a} score={teamAScore} isLive={events[events.length - 1]?.innings_no === (teamAScore?.is_first_innings ? 1 : 2) && match.status === 'Live'} />
+                    <SummaryCard team={match.team_b} score={teamBScore} isLive={events[events.length - 1]?.innings_no === (teamBScore?.is_first_innings ? 1 : 2) && match.status === 'Live'} />
+                </div>
+
+                {/* Match Stats Strip */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+                    <StatBox label="Total Runs" value={totalRuns} />
+                    <StatBox label="Wickets" value={totalWickets} />
+                    <StatBox label="Boundaries" value={totalFours + totalSixes} />
+                    <StatBox label="Run Rate" value={(teamAScore ? (teamAScore.runs_scored / (getBallsFromDecimal(teamAScore.overs_played) / 6 || 1)) : 0).toFixed(2)} />
+                </div>
+
+                {/* Detailed Performance Sections */}
+                <div className="space-y-12">
+                    <section className="space-y-8">
+                        <InningsScorecard inningsNo={1} team={match.team_a} events={events} players={players} scores={scores} />
+                        <InningsScorecard inningsNo={2} team={match.team_b} events={events} players={players} scores={scores} />
+                    </section>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function SummaryCard({ team, score, isLive }: any) {
+    const balls = getBallsFromDecimal(score?.overs_played || 0)
+    return (
+        <Card className={cn("rounded-[3rem] border-none shadow-xl overflow-hidden p-10 transition-all", isLive ? "bg-slate-900 text-white scale-105" : "bg-white")}>
+            <div className="flex justify-between items-center">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-2">Competing Squad</p>
+                    <h3 className="text-3xl font-black italic uppercase leading-none">{team.name}</h3>
+                </div>
+                <div className="text-right">
+                    <p className="text-5xl font-black italic text-primary">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
+                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest">{formatOvers(balls)} OVERS</p>
+                </div>
+            </div>
+            {isLive && <div className="mt-6 flex items-center gap-2 text-[10px] font-black text-primary uppercase"><div className="h-2 w-2 bg-primary rounded-full animate-ping" /> Currently Batting</div>}
+        </Card>
+    )
+}
+
+function StatBox({ label, value }: any) {
+    return (
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 text-center">
+            <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">{label}</p>
+            <p className="text-4xl font-black italic text-slate-900">{value}</p>
+        </div>
+    )
+}
+
+function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
+    const inningsEvents = events.filter((e: any) => e.innings_no === inningsNo)
+    const score = scores.find((s: any) => s.is_first_innings === (inningsNo === 1))
+
+    if (inningsEvents.length === 0 && !score) return null
+
+    // Batter Stats Engine (Rule 7)
+    const batterStats: any = {}
+    inningsEvents.forEach((e: any) => {
+        if (!e.batter_id) return
+        if (!batterStats[e.batter_id]) {
+            batterStats[e.batter_id] = { name: players.find((p: any) => p.id === e.batter_id)?.name, R: 0, B: 0, fours: 0, sixes: 0, status: "not out" }
+        }
+
+        // Rule 3.1 & 3.3
+        if (e.extra_type !== "WIDE" && e.extra_type !== "BYE" && e.extra_type !== "LEG_BYE") {
+            // Note: Rule 3.4 says BYE/LEG_BYE don't increment striker balls
+            // Rule 3.3 says NO_BALL doesn't increment balls count either? 
+            // Wait, looking closely at User Rule 3.1, 3.5, 3.4, 3.3...
+            // "striker.balls += 1" ONLY in RUN (3.1) and WICKET (3.5).
+            if (!e.extra_type || e.extra_type === "RUN") {
+                batterStats[e.batter_id].B += 1
+            }
+        }
+
+        if (isFinite(e.runs_batter)) batterStats[e.batter_id].R += e.runs_batter
+        if (e.runs_batter === 4) batterStats[e.batter_id].fours += 1
+        if (e.runs_batter === 6) batterStats[e.batter_id].sixes += 1
+
+        if (e.wicket_type && e.player_out_id === e.batter_id) {
+            batterStats[e.batter_id].status = "out"
+        }
+    })
+
+    // Bowler Stats Engine (Rule 7)
+    const bowlerStats: any = {}
+    inningsEvents.forEach((e: any) => {
+        if (!e.bowler_id) return
+        if (!bowlerStats[e.bowler_id]) {
+            bowlerStats[e.bowler_id] = { name: players.find((p: any) => p.id === e.bowler_id)?.name, O: 0, B: 0, R: 0, W: 0 }
+        }
+
+        // Rule: increment ball if RUN, BYE, LEG_BYE, WICKET (Snippet 3.1, 3.4, 3.5)
+        if (!e.extra_type || e.extra_type === "BYE" || e.extra_type === "LEG_BYE" || e.wicket_type) {
+            if (e.extra_type !== "WIDE" && e.extra_type !== "NO_BALL") {
+                bowlerStats[e.bowler_id].B += 1
+            }
+        }
+
+        bowlerStats[e.bowler_id].R += (e.runs_batter + (e.extra_type === "WIDE" || e.extra_type === "NO_BALL" ? e.runs_extras : 0))
+        if (e.wicket_type) bowlerStats[e.bowler_id].W += 1
+    })
+
+    // Fall of Wickets
+    const fow: any[] = []
+    let currentScore = 0
+    let currentWickets = 0
+    inningsEvents.forEach((e: any) => {
+        currentScore += (e.runs_batter + e.runs_extras)
+        if (e.wicket_type) {
+            currentWickets++
+            fow.push({ score: currentScore, wicket: currentWickets, player: players.find((p: any) => p.id === e.player_out_id)?.name })
+        }
+    })
+
+    return (
+        <Card className="rounded-[3rem] border-none shadow-2xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-900 text-white p-8 flex flex-row justify-between items-center">
+                <div>
+                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Innings {inningsNo}</p>
+                    <CardTitle className="text-3xl font-black italic uppercase leading-none">{team.name}</CardTitle>
+                </div>
+                <div className="text-right">
+                    <p className="text-4xl font-black italic text-primary">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
+                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest">{formatOvers(getBallsFromDecimal(score?.overs_played || 0))} OVERS</p>
+                </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-12">
+                {/* Batting Scorecard */}
+                <div className="space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><div className="h-1 w-4 bg-primary rounded-full" /> Batting Scorecard</h4>
+                    <table className="w-full">
+                        <thead className="text-[10px] font-black uppercase tracking-widest opacity-30 border-b">
+                            <tr>
+                                <th className="pb-4 text-left">Batter</th>
+                                <th className="pb-4 text-center">R</th>
+                                <th className="pb-4 text-center">B</th>
+                                <th className="pb-4 text-center">4s</th>
+                                <th className="pb-4 text-center">6s</th>
+                                <th className="pb-4 text-center">SR</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {Object.values(batterStats).map((b: any, idx) => (
+                                <tr key={idx} className="group hover:bg-slate-50/50">
+                                    <td className="py-4">
+                                        <p className="font-black text-slate-800">{b.name} <span className={cn("text-[9px] font-bold uppercase ml-2", b.status === "out" ? "text-red-500" : "text-green-500")}>{b.status}</span></p>
+                                    </td>
+                                    <td className="py-4 text-center font-black text-primary text-xl">{b.R}</td>
+                                    <td className="py-4 text-center text-xs font-bold text-slate-400">{b.B}</td>
+                                    <td className="py-4 text-center text-xs font-bold text-slate-400">{b.fours}</td>
+                                    <td className="py-4 text-center text-xs font-bold text-slate-400">{b.sixes}</td>
+                                    <td className="py-4 text-center font-black text-[10px]">{(b.B > 0 ? (b.R / b.B) * 100 : 0).toFixed(1)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Bowling Figures */}
+                <div className="space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><div className="h-1 w-4 bg-red-500 rounded-full" /> Bowling Figures</h4>
+                    <table className="w-full">
+                        <thead className="text-[10px] font-black uppercase tracking-widest opacity-30 border-b">
+                            <tr>
+                                <th className="pb-4 text-left">Bowler</th>
+                                <th className="pb-4 text-center">O</th>
+                                <th className="pb-4 text-center">R</th>
+                                <th className="pb-4 text-center">W</th>
+                                <th className="pb-4 text-center">Econ</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {Object.values(bowlerStats).map((b: any, idx) => {
+                                const overs = Math.floor(b.B / 6) + (b.B % 6) / 10
+                                const economy = overs > 0 ? (b.R / (b.B / 6)).toFixed(2) : "0.00"
+                                return (
+                                    <tr key={idx}>
+                                        <td className="py-4 font-black">{b.name}</td>
+                                        <td className="py-4 text-center font-bold text-slate-400">{formatOvers(b.B)}</td>
+                                        <td className="py-4 text-center font-black text-slate-800">{b.R}</td>
+                                        <td className="py-4 text-center font-black text-red-500 text-xl">{b.W}</td>
+                                        <td className="py-4 text-center text-xs font-black">{economy}</td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Fall of Wickets */}
+                {fow.length > 0 && (
+                    <div className="space-y-4 pt-8 border-t border-slate-100">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fall of Wickets</h4>
+                        <div className="flex flex-wrap gap-3">
+                            {fow.map((f, i) => (
+                                <div key={i} className="bg-slate-50 px-4 py-2 rounded-xl text-[10px] font-bold border border-slate-100">
+                                    <span className="text-primary font-black">{f.wicket}-{f.score}</span> ({f.player})
+                                </div>
+                            ))}
                         </div>
-                    </CardContent>
-                </Card>
-
-                {/* Scorecard */}
-                <div className="grid md:grid-cols-2 gap-8 mb-8">
-                    {/* Team A Scorecard */}
-                    <Card className="rounded-[3rem] border-none shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-2xl font-black italic">{match.team_a.name}</CardTitle>
-                                    <p className="text-sm opacity-80 mt-1">{teamAScore?.is_first_innings ? '1st Innings' : '2nd Innings'}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-4xl font-black">{teamAScore?.runs_scored || 0}/{teamAScore?.wickets_lost || 0}</p>
-                                    <p className="text-sm opacity-80">({teamAScore?.overs_played || 0} overs)</p>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-6">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-                                <Users className="h-4 w-4" /> Batting Performance
-                            </h4>
-                            <div className="space-y-3">
-                                {teamABatters.length > 0 ? teamABatters.map((player, idx) => (
-                                    <BattingRow key={idx} player={player} isTopScorer={idx === 0} />
-                                )) : (
-                                    <p className="text-sm text-muted-foreground italic">No batting data available</p>
-                                )}
-                            </div>
-
-                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4 mt-8 flex items-center gap-2">
-                                <Target className="h-4 w-4" /> Bowling Performance
-                            </h4>
-                            <div className="space-y-3">
-                                {teamABowlers.length > 0 ? teamABowlers.map((player, idx) => (
-                                    <BowlingRow key={idx} player={player} isTopBowler={idx === 0} />
-                                )) : (
-                                    <p className="text-sm text-muted-foreground italic">No bowling data available</p>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Team B Scorecard */}
-                    <Card className="rounded-[3rem] border-none shadow-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-red-600 to-red-500 text-white p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-2xl font-black italic">{match.team_b.name}</CardTitle>
-                                    <p className="text-sm opacity-80 mt-1">{teamBScore?.is_first_innings ? '1st Innings' : '2nd Innings'}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-4xl font-black">{teamBScore?.runs_scored || 0}/{teamBScore?.wickets_lost || 0}</p>
-                                    <p className="text-sm opacity-80">({teamBScore?.overs_played || 0} overs)</p>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-6">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-                                <Users className="h-4 w-4" /> Batting Performance
-                            </h4>
-                            <div className="space-y-3">
-                                {teamBBatters.length > 0 ? teamBBatters.map((player, idx) => (
-                                    <BattingRow key={idx} player={player} isTopScorer={idx === 0} />
-                                )) : (
-                                    <p className="text-sm text-muted-foreground italic">No batting data available</p>
-                                )}
-                            </div>
-
-                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4 mt-8 flex items-center gap-2">
-                                <Target className="h-4 w-4" /> Bowling Performance
-                            </h4>
-                            <div className="space-y-3">
-                                {teamBBowlers.length > 0 ? teamBBowlers.map((player, idx) => (
-                                    <BowlingRow key={idx} player={player} isTopBowler={idx === 0} />
-                                )) : (
-                                    <p className="text-sm text-muted-foreground italic">No bowling data available</p>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Player of the Match */}
-                {topBatsman && topBowler && (
-                    <Card className="mb-8 rounded-[3rem] border-none shadow-xl bg-gradient-to-br from-amber-50 to-orange-50">
-                        <CardHeader className="border-b">
-                            <div className="flex items-center gap-3">
-                                <Award className="h-6 w-6 text-amber-600" />
-                                <CardTitle className="text-2xl font-black italic">Star Performers</CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-8">
-                            <div className="grid md:grid-cols-2 gap-8">
-                                <div className="text-center p-6 bg-white rounded-3xl shadow-lg">
-                                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mb-4">
-                                        <Zap className="h-8 w-8 text-amber-600" />
-                                    </div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-amber-600 mb-2">Top Batsman</p>
-                                    <p className="text-2xl font-black italic mb-2">{topBatsman.player_name}</p>
-                                    <p className="text-4xl font-black text-primary mb-1">{topBatsman.runs}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {topBatsman.balls_faced} balls • {topBatsman.fours} fours • {topBatsman.sixes} sixes
-                                    </p>
-                                    <p className="text-xs font-bold text-primary mt-2">
-                                        SR: {topBatsman.balls_faced > 0 ? ((topBatsman.runs / topBatsman.balls_faced) * 100).toFixed(2) : '0.00'}
-                                    </p>
-                                </div>
-
-                                <div className="text-center p-6 bg-white rounded-3xl shadow-lg">
-                                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
-                                        <Target className="h-8 w-8 text-red-600" />
-                                    </div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-red-600 mb-2">Top Bowler</p>
-                                    <p className="text-2xl font-black italic mb-2">{topBowler.player_name}</p>
-                                    <p className="text-4xl font-black text-primary mb-1">{topBowler.wickets}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {topBowler.overs_bowled} overs • {topBowler.runs_conceded} runs
-                                    </p>
-                                    <p className="text-xs font-bold text-primary mt-2">
-                                        Econ: {topBowler.overs_bowled > 0 ? (topBowler.runs_conceded / topBowler.overs_bowled).toFixed(2) : '0.00'}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    </div>
                 )}
-            </div>
-        </div>
-    )
-}
-
-function StatBox({ label, value }: { label: string, value: string }) {
-    return (
-        <div className="text-center p-6 bg-slate-50 rounded-2xl hover:bg-primary/5 transition-all">
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{label}</p>
-            <p className="text-3xl font-black italic text-primary">{value}</p>
-        </div>
-    )
-}
-
-function BattingRow({ player, isTopScorer }: { player: PlayerPerformance, isTopScorer: boolean }) {
-    const strikeRate = player.balls_faced > 0 ? ((player.runs / player.balls_faced) * 100).toFixed(1) : '0.0'
-
-    return (
-        <div className={cn(
-            "flex items-center justify-between p-4 rounded-2xl transition-all",
-            isTopScorer ? "bg-primary/10 border-2 border-primary/20" : "bg-slate-50 hover:bg-slate-100"
-        )}>
-            <div className="flex-grow">
-                <div className="flex items-center gap-2">
-                    <p className="font-black text-sm">{player.player_name}</p>
-                    {isTopScorer && <Award className="h-4 w-4 text-primary" />}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                    {player.balls_faced} balls • {player.fours} fours • {player.sixes} sixes
-                </p>
-            </div>
-            <div className="text-right">
-                <p className="text-2xl font-black text-primary">{player.runs}</p>
-                <p className="text-[10px] font-bold text-muted-foreground">SR: {strikeRate}</p>
-            </div>
-        </div>
-    )
-}
-
-function BowlingRow({ player, isTopBowler }: { player: PlayerPerformance, isTopBowler: boolean }) {
-    const economy = player.overs_bowled > 0 ? (player.runs_conceded / player.overs_bowled).toFixed(2) : '0.00'
-
-    return (
-        <div className={cn(
-            "flex items-center justify-between p-4 rounded-2xl transition-all",
-            isTopBowler ? "bg-primary/10 border-2 border-primary/20" : "bg-slate-50 hover:bg-slate-100"
-        )}>
-            <div className="flex-grow">
-                <div className="flex items-center gap-2">
-                    <p className="font-black text-sm">{player.player_name}</p>
-                    {isTopBowler && <Award className="h-4 w-4 text-primary" />}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                    {player.overs_bowled} overs • {player.runs_conceded} runs
-                </p>
-            </div>
-            <div className="text-right">
-                <p className="text-2xl font-black text-primary">{player.wickets}</p>
-                <p className="text-[10px] font-bold text-muted-foreground">Econ: {economy}</p>
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     )
 }

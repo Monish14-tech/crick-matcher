@@ -24,7 +24,7 @@ const featuredMatches: FeaturedMatch[] = [
         image: "/premier_league_match.png",
         teams: "Create T10, T20, or custom over matches instantly",
         date: "Create Now",
-        link: "/admin"
+        link: "/admin/matches/new"
     },
     {
         id: 2,
@@ -33,7 +33,7 @@ const featuredMatches: FeaturedMatch[] = [
         image: "/pro_series_match.png",
         teams: "Join the league of professional squads",
         date: "View Teams",
-        link: "/admin"
+        link: "/teams"
     },
     {
         id: 3,
@@ -50,6 +50,7 @@ export function FeaturedMatchesCarousel() {
     const router = useRouter()
     const [currentIndex, setCurrentIndex] = useState(0)
     const [direction, setDirection] = useState(0)
+    const [isNavigating, setIsNavigating] = useState(false)
 
     // Auto-slide every 5 seconds
     useEffect(() => {
@@ -74,6 +75,16 @@ export function FeaturedMatchesCarousel() {
         setDirection(index > currentIndex ? 1 : -1)
         setCurrentIndex(index)
     }
+
+    const handleNavigation = (link: string) => {
+        setIsNavigating(true)
+        router.push(link)
+    }
+
+    // Reset navigating state when index changes
+    useEffect(() => {
+        setIsNavigating(false)
+    }, [currentIndex])
 
     const slideVariants = {
         enter: (direction: number) => ({
@@ -124,7 +135,7 @@ export function FeaturedMatchesCarousel() {
                         }
                     }}
                     onTap={() => {
-                        router.push(featuredMatches[currentIndex].link)
+                        handleNavigation(featuredMatches[currentIndex].link)
                     }}
                     className="absolute inset-0 rounded-[3rem] overflow-hidden shadow-2xl border-[8px] border-white cursor-pointer"
                 >
@@ -140,7 +151,7 @@ export function FeaturedMatchesCarousel() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
                     {/* Content */}
-                    <div className="absolute inset-0 flex flex-col justify-end p-8 md:p-10 pointer-events-none">
+                    <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-10 pointer-events-none">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -149,38 +160,47 @@ export function FeaturedMatchesCarousel() {
                         >
                             {/* Title & Subtitle */}
                             <div>
-                                <p className="text-sm md:text-base font-bold text-primary tracking-widest uppercase mb-1 drop-shadow-md">
+                                <p className="text-xs md:text-base font-bold text-primary tracking-widest uppercase mb-1 drop-shadow-md">
                                     {featuredMatches[currentIndex].subtitle}
                                 </p>
-                                <h3 className="text-3xl md:text-5xl font-black italic tracking-tighter text-white leading-[0.9] drop-shadow-2xl">
+                                <h3 className="text-2xl md:text-5xl font-black italic tracking-tighter text-white leading-tight md:leading-[0.9] drop-shadow-2xl">
                                     {featuredMatches[currentIndex].title}
                                 </h3>
                             </div>
 
                             {/* Teams */}
-                            <p className="text-sm font-medium text-white/90 line-clamp-1 drop-shadow-md">
+                            <p className="text-xs md:text-sm font-medium text-white/90 line-clamp-2 md:line-clamp-1 drop-shadow-md">
                                 {featuredMatches[currentIndex].teams}
                             </p>
 
                             {/* Date & CTA */}
                             <div className="flex items-center justify-between pt-2">
-                                <div className="flex items-center gap-2 text-white/90 font-bold text-xs uppercase tracking-widest drop-shadow-md">
-                                    <div className="h-1 w-8 bg-primary rounded-full shadow-lg" />
+                                <div className="flex items-center gap-2 text-white/90 font-bold text-[10px] md:text-xs uppercase tracking-widest drop-shadow-md">
+                                    <div className="h-1 w-6 md:w-8 bg-primary rounded-full shadow-lg" />
                                     {featuredMatches[currentIndex].date}
                                 </div>
                                 <div className="pointer-events-auto">
                                     <Button
                                         size="sm"
                                         variant="secondary"
-                                        className="rounded-xl font-black text-xs h-10 px-6 shadow-xl hover:scale-105 transition-transform z-50 relative cursor-pointer"
+                                        disabled={isNavigating}
+                                        className="rounded-xl font-black text-[10px] md:text-xs h-9 md:h-10 px-4 md:px-6 shadow-xl hover:scale-105 transition-transform z-50 relative cursor-pointer min-w-[100px] md:min-w-[120px]"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             e.preventDefault();
-                                            router.push(featuredMatches[currentIndex].link);
+                                            handleNavigation(featuredMatches[currentIndex].link);
                                         }}
                                         onPointerDown={(e) => e.stopPropagation()}
+                                        aria-label={`Explore ${featuredMatches[currentIndex].title}`}
                                     >
-                                        Try Now <Play className="ml-1 h-3 w-3 fill-current" />
+                                        {isNavigating ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                                Loading...
+                                            </div>
+                                        ) : (
+                                            <>Try Now <Play className="ml-1 h-3 w-3 fill-current" /></>
+                                        )}
                                     </Button>
                                 </div>
                             </div>

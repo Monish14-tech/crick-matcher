@@ -114,11 +114,11 @@ export default function SchedulePage() {
                                 <div className="space-y-3 pt-4 border-t border-border/50">
                                     <div className="flex items-center text-sm text-muted-foreground gap-2">
                                         <Calendar className="h-4 w-4 text-primary" />
-                                        <span>{new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                        <span>{match.match_date ? new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}</span>
                                     </div>
                                     <div className="flex items-center text-sm text-muted-foreground gap-2">
                                         <Clock className="h-4 w-4 text-primary" />
-                                        <span>{match.match_time.slice(0, 5)}</span>
+                                        <span>{match.match_time ? match.match_time.slice(0, 5) : '00:00'}</span>
                                     </div>
                                     <div className="flex items-center text-sm text-muted-foreground gap-2">
                                         <MapPin className="h-4 w-4 text-primary" />

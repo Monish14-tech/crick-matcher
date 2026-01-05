@@ -101,15 +101,48 @@ export default function TeamsPage() {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-20 border-2 border-dashed rounded-3xl">
-                    <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p className="text-muted-foreground">No teams found. Be the first to register!</p>
-                    <Button className="mt-4" asChild>
-                        <Link href="/teams/register">Register Now</Link>
-                    </Button>
+                <div className="space-y-12">
+                    <div className="text-center py-20 border-2 border-dashed rounded-3xl bg-slate-50/50">
+                        <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                        <p className="text-muted-foreground font-bold">No teams registered. Be the first to join!</p>
+                        <Button className="mt-6 rounded-xl font-black px-8" asChild>
+                            <Link href="/teams/register">Register Now</Link>
+                        </Button>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-4">
+                            <div className="h-px flex-grow bg-slate-100" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sample Roster</span>
+                            <div className="h-px flex-grow bg-slate-100" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 opacity-40 grayscale pointer-events-none">
+                            <SampleTeamCard name="Rising Stars" captain="Alex Johnson" />
+                            <SampleTeamCard name="Blue Blasters" captain="Sarah Williams" />
+                            <SampleTeamCard name="Thunder XI" captain="Mike Ross" />
+                            <SampleTeamCard name="Evergreen CC" captain="David Miller" />
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
+    )
+}
+
+function SampleTeamCard({ name, captain }: { name: string, captain: string }) {
+    return (
+        <Card className="overflow-hidden border-border/50">
+            <CardHeader className="text-center pb-2">
+                <div className="h-16 w-16 bg-slate-100 rounded-full mx-auto flex items-center justify-center text-2xl font-bold text-slate-300 border-2 border-white shadow-sm">
+                    {name[0]}
+                </div>
+                <CardTitle className="pt-4 text-lg">{name}</CardTitle>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Captain: {captain}</p>
+            </CardHeader>
+            <CardContent className="text-center py-4">
+                <div className="h-2 w-24 bg-slate-100 mx-auto rounded-full" />
+            </CardContent>
+        </Card>
     )
 }
 
