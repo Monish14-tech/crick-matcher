@@ -381,7 +381,22 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 setShowInningsSummary(true)
 
                 if (activeState.innings_no === 2) {
-                    await supabase.from('matches').update({ status: 'Completed' }).eq('id', id)
+                    let winnerId = null
+                    if (targetScore && newTotalRuns >= targetScore) {
+                        winnerId = activeState.batting_team_id
+                    } else if (targetScore) {
+                        // Defending team won
+                        winnerId = activeState.batting_team_id === match.team_a_id ? match.team_b_id : match.team_a_id
+                        // Check for tie
+                        if (newTotalRuns === targetScore - 1) {
+                            winnerId = null // Tie
+                        }
+                    }
+
+                    await supabase.from('matches').update({
+                        status: 'Completed',
+                        winner_id: winnerId
+                    }).eq('id', id)
                 }
 
                 // Only update scores, DO NOT update active state (balls/overs) further if innings ended

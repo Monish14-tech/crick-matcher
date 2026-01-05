@@ -121,7 +121,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
         fetchMatchDetails()
 
         const channel = supabase
-            .channel(`match-${id}`)
+            .channel(`match-detail-${id}`)
             .on(
                 'postgres_changes',
                 {
@@ -130,9 +130,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     table: 'match_scores',
                     filter: `match_id=eq.${id}`
                 },
-                () => {
-                    fetchMatchDetails()
-                }
+                () => fetchMatchDetails()
             )
             .on(
                 'postgres_changes',
@@ -142,9 +140,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     table: 'matches',
                     filter: `id=eq.${id}`
                 },
-                () => {
-                    fetchMatchDetails()
-                }
+                () => fetchMatchDetails()
             )
             .on(
                 'postgres_changes',
@@ -154,9 +150,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     table: 'match_events',
                     filter: `match_id=eq.${id}`
                 },
-                () => {
-                    fetchMatchDetails()
-                }
+                () => fetchMatchDetails()
             )
             .on(
                 'postgres_changes',
@@ -166,9 +160,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     table: 'player_performances',
                     filter: `match_id=eq.${id}`
                 },
-                () => {
-                    fetchMatchDetails()
-                }
+                () => fetchMatchDetails()
             )
             .subscribe()
 
@@ -183,11 +175,21 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const teamAScore = scores.find(s => s.team_id === match.team_a.id)
     const teamBScore = scores.find(s => s.team_id === match.team_b.id)
 
-    const winnerTeam = match.winner_id === match.team_a.id ? match.team_a : match.winner_id === match.team_b.id ? match.team_b : null
-    const loserTeam = match.winner_id === match.team_a.id ? match.team_b : match.winner_id === match.team_b.id ? match.team_a : null
+    // Determine Winner Logic (Robust Fallback)
+    let winnerId = match.winner_id
 
-    const winnerScore = match.winner_id === match.team_a.id ? teamAScore : teamBScore
-    const loserScore = match.winner_id === match.team_a.id ? teamBScore : teamAScore
+    if (!winnerId && match.status === 'Completed' && teamAScore && teamBScore) {
+        // Fallback calculation if winner_id wasn't saved
+        if (teamAScore.runs_scored > teamBScore.runs_scored) winnerId = match.team_a.id
+        else if (teamBScore.runs_scored > teamAScore.runs_scored) winnerId = match.team_b.id
+        // Handle Tie or Super Over logic here if needed (defaults to null/draw)
+    }
+
+    const winnerTeam = winnerId === match.team_a.id ? match.team_a : winnerId === match.team_b.id ? match.team_b : null
+    const loserTeam = winnerId === match.team_a.id ? match.team_b : winnerId === match.team_b.id ? match.team_a : null
+
+    const winnerScore = winnerId === match.team_a.id ? teamAScore : teamBScore
+    const loserScore = winnerId === match.team_a.id ? teamBScore : teamAScore
 
     const runDifference = winnerScore && loserScore ? winnerScore.runs_scored - loserScore.runs_scored : 0
     const wicketDifference = loserScore ? 10 - loserScore.wickets_lost : 0
