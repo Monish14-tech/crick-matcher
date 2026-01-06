@@ -147,13 +147,14 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
         if (firstInnings && secondInnings) {
             const target = firstInnings.runs_scored + 1
-            const battingTeamName = match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name
+            const isWinnerA = match.winner_id === match.team_a_id
+            const battingTeamName = isWinnerA ? match.team_a.name : match.team_b.name
             winnerName = battingTeamName
 
             if (secondInnings.runs_scored >= target) {
                 resultMessage = `${battingTeamName} won by ${10 - secondInnings.wickets_lost} wickets`
-            } else if (secondInnings.runs_scored < firstInnings.runs_scored) {
-                resultMessage = `${match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name} won by ${firstInnings.runs_scored - secondInnings.runs_scored} runs`
+            } else if (secondInnings.runs_scored < (firstInnings.runs_scored || 0)) {
+                resultMessage = `${winnerName} won by ${(firstInnings.runs_scored || 0) - secondInnings.runs_scored} runs`
             } else {
                 resultMessage = "Match Tied"
             }
@@ -171,7 +172,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const totalSixes = events.filter(e => e.runs_batter === 6).length
 
     return (
-        <div className="min-h-screen bg-slate-100/50">
+        <div className="min-h-screen bg-slate-100/50 pb-24">
             {/* Header Hero */}
             <div className="bg-slate-900 text-white pt-24 pb-32 px-4 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent)] pointer-events-none" />
@@ -187,19 +188,19 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                             </h1>
                             <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                                 <span className="px-6 py-2.5 bg-white/5 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 flex items-center gap-2">
-                                    <Clock className="h-3.5 w-3.5 text-primary" /> {match.overs_type}
+                                    <Clock className="h-3.5 w-3.5 text-primary" /> {(match as any).overs_type}
                                 </span>
                                 <span className={cn(
                                     "px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-lg transition-all",
-                                    match.status === 'Live' ? "bg-red-500 border-red-500 animate-pulse text-white" : "bg-white/5 border-white/10 text-white/70"
+                                    (match as any).status === 'Live' ? "bg-red-500 border-red-500 animate-pulse text-white" : "bg-white/5 border-white/10 text-white/70"
                                 )}>
-                                    {match.status}
+                                    {(match as any).status}
                                 </span>
                             </div>
                         </div>
 
                         <div className="flex justify-center lg:justify-end w-full">
-                            {match.status === 'Completed' ? (
+                            {(match as any).status === 'Completed' ? (
                                 <div className="relative group">
                                     <div className="absolute -inset-1 bg-gradient-to-r from-primary to-amber-500 rounded-[3rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
                                     <Card className="relative bg-slate-900 border-2 border-primary/50 text-white p-8 rounded-[3rem] shadow-2xl flex flex-col items-center min-w-[320px]">
@@ -215,12 +216,12 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] w-full max-w-lg shadow-2xl">
                                     <div className="flex items-center justify-between gap-8">
                                         <div className="text-center flex-1">
-                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{match.team_a.name}</p>
+                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{(match as any).team_a.name}</p>
                                             <p className="text-4xl font-black italic text-primary">{teamAScore?.runs_scored || 0}/{teamAScore?.wickets_lost || 0}</p>
                                         </div>
                                         <div className="h-12 w-px bg-white/10" />
                                         <div className="text-center flex-1">
-                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{match.team_b.name}</p>
+                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{(match as any).team_b.name}</p>
                                             <p className="text-4xl font-black italic text-primary">{teamBScore?.runs_scored || 0}/{teamBScore?.wickets_lost || 0}</p>
                                         </div>
                                     </div>
@@ -232,35 +233,35 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                         </div>
                     </div>
                 </div>
-
-                {/* Most Impactful Players (Post-Match) */}
-                {match.status === 'Completed' && (() => {
-                    const { topBatter, topBowler } = calculateImpactPlayers(events, players);
-                    return (
-                        <div className="max-w-6xl mx-auto px-4 -mt-16 mb-12 relative z-20">
-                            <div className="grid md:grid-cols-2 gap-8">
-                                {topBatter ? (
-                                    <ImpactPlayerCard
-                                        player={topBatter}
-                                        type="Batter"
-                                        icon={<Zap className="h-6 w-6 text-primary" />}
-                                    />
-                                ) : null}
-                                {topBowler ? (
-                                    <ImpactPlayerCard
-                                        player={topBowler}
-                                        type="Bowler"
-                                        icon={<Target className="h-6 w-6 text-red-500" />}
-                                    />
-                                ) : null}
-                            </div>
-                        </div>
-                    );
-                })()}
             </div>
 
+            {/* Most Impactful Players (Post-Match) - Positioned with negative margin for overlap effect */}
+            {(match as any).status === 'Completed' && (() => {
+                const { topBatter, topBowler } = calculateImpactPlayers(events, players);
+                return (
+                    <div className="max-w-6xl mx-auto px-4 -mt-16 mb-12 relative z-20">
+                        <div className="grid md:grid-cols-2 gap-8">
+                            {topBatter ? (
+                                <ImpactPlayerCard
+                                    player={topBatter}
+                                    type="Batter"
+                                    icon={<Zap className="h-6 w-6 text-primary" />}
+                                />
+                            ) : null}
+                            {topBowler ? (
+                                <ImpactPlayerCard
+                                    player={topBowler}
+                                    type="Bowler"
+                                    icon={<Target className="h-6 w-6 text-red-500" />}
+                                />
+                            ) : null}
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Ball by Ball Ticker (Live Feed) */}
-            {match.status === 'Live' && (
+            {(match as any).status === 'Live' && (
                 <div className="bg-white border-y border-slate-200 shadow-sm relative z-30">
                     <BallByBallTicker matchId={id} />
                 </div>
@@ -268,51 +269,57 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
             <div className="max-w-6xl mx-auto px-4 py-24 relative z-10">
                 {/* Result Summary Table (Structured) */}
-                {match.status === 'Completed' && (
-                    <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden mb-8 bg-white">
+                {(match as any).status === 'Completed' && (
+                    <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden mb-12 bg-white">
                         <CardHeader className="bg-slate-50 p-6 border-b">
-                            <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                                <Swords className="h-4 w-4 text-primary" /> Match Result Structure
+                            <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-400">
+                                <Swords className="h-4 w-4 text-primary" /> Match Summary Breakdown
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <table className="w-full">
-                                <thead className="bg-slate-50/50">
-                                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        <th className="px-8 py-4 text-left">Team</th>
-                                        <th className="px-8 py-4 text-center">Score</th>
-                                        <th className="px-8 py-4 text-center">Overs</th>
-                                        <th className="px-8 py-4 text-right">Result Role</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {[
-                                        { team: match.team_a, score: teamAScore, winner: match.winner_id === match.team_a.id },
-                                        { team: match.team_b, score: teamBScore, winner: match.winner_id === match.team_b.id }
-                                    ].map((row, idx) => (
-                                        <tr key={idx} className={cn("hover:bg-slate-50 transition-colors", row.winner && "bg-primary/5")}>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={cn("h-3 w-3 rounded-full", row.winner ? "bg-primary" : "bg-slate-300")} />
-                                                    <span className="font-black italic uppercase text-lg">{row.team.name}</span>
-                                                    {row.winner && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6 text-center">
-                                                <span className="text-2xl font-black">{row.score?.runs_scored || 0}/{row.score?.wickets_lost || 0}</span>
-                                            </td>
-                                            <td className="px-8 py-6 text-center text-slate-500 font-bold">
-                                                {formatOvers(getBallsFromDecimal(row.score?.overs_played || 0))}
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <span className={cn("px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest", row.winner ? "bg-primary text-white" : "bg-slate-200 text-slate-500")}>
-                                                    {row.winner ? "Winner" : "Runner Up"}
-                                                </span>
-                                            </td>
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[600px]">
+                                    <thead className="bg-slate-50/50">
+                                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                                            <th className="px-8 py-4 text-left">Team</th>
+                                            <th className="px-8 py-4 text-center">Total Score</th>
+                                            <th className="px-8 py-4 text-center">Overs</th>
+                                            <th className="px-8 py-4 text-right">Match Role</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {[
+                                            { team: (match as any).team_a, score: teamAScore, isWin: (match as any).winner_id === (match as any).team_a_id },
+                                            { team: (match as any).team_b, score: teamBScore, isWin: (match as any).winner_id === (match as any).team_b_id }
+                                        ].map((row, idx) => (
+                                            <tr key={idx} className={cn("hover:bg-slate-50 transition-colors", row.isWin && "bg-primary/5")}>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn("h-4 w-1 rounded-full", row.isWin ? "bg-primary" : "bg-slate-300")} />
+                                                        <span className="font-black italic uppercase text-xl text-slate-900 leading-none">{row.team.name}</span>
+                                                        {row.isWin && <CheckCircle2 className="h-5 w-5 text-primary fill-primary/10" />}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-center">
+                                                    <span className="text-2xl font-black italic text-slate-900">{row.score?.runs_scored || 0}<span className="text-sm opacity-30 mx-1">/</span>{row.score?.wickets_lost || 0}</span>
+                                                </td>
+                                                <td className="px-8 py-6 text-center text-slate-500 font-bold font-mono">
+                                                    {formatOvers(getBallsFromDecimal(row.score?.overs_played || 0))}
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <span className={cn(
+                                                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-2 shadow-sm border",
+                                                        row.isWin ? "bg-primary border-primary text-white shadow-primary/20" : "bg-white border-slate-200 text-slate-400"
+                                                    )}>
+                                                        {row.isWin ? <CheckCircle2 className="h-3 w-3" /> : null}
+                                                        {row.isWin ? "Winner" : "Runner Up"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
@@ -320,19 +327,19 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                 {/* Live High-Level Scorecard (Visual) */}
                 <div className="grid md:grid-cols-2 gap-10 mb-12">
                     <SummaryCard
-                        team={match.team_a}
+                        team={(match as any).team_a}
                         score={teamAScore}
-                        isWinner={match.winner_id === match.team_a_id}
-                        isLive={activeState?.batting_team_id === match.team_a_id && match.status === 'Live'}
-                        matchStatus={match.status}
+                        isWinner={(match as any).winner_id === (match as any).team_a_id}
+                        isLive={activeState?.batting_team_id === (match as any).team_a_id && (match as any).status === 'Live'}
+                        matchStatus={(match as any).status}
                         targetScore={(!teamAScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
                     <SummaryCard
-                        team={match.team_b}
+                        team={(match as any).team_b}
                         score={teamBScore}
-                        isWinner={match.winner_id === match.team_b_id}
-                        isLive={activeState?.batting_team_id === match.team_b_id && match.status === 'Live'}
-                        matchStatus={match.status}
+                        isWinner={(match as any).winner_id === (match as any).team_b_id}
+                        isLive={activeState?.batting_team_id === (match as any).team_b_id && (match as any).status === 'Live'}
+                        matchStatus={(match as any).status}
                         targetScore={(!teamBScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
                 </div>
@@ -347,8 +354,8 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
                 {/* Detailed Performance Sections */}
                 <div className="space-y-16">
-                    <InningsScorecard inningsNo={1} team={match.team_a} events={events} players={players} scores={scores} />
-                    <InningsScorecard inningsNo={2} team={match.team_b} events={events} players={players} scores={scores} />
+                    <InningsScorecard inningsNo={1} team={(match as any).team_a} events={events} players={players} scores={scores} />
+                    <InningsScorecard inningsNo={2} team={(match as any).team_b} events={events} players={players} scores={scores} />
                 </div>
             </div>
         </div>

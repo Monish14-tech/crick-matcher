@@ -204,25 +204,27 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             let nonStriker = { id: activeState.non_striker_id }
             let bowler = { id: activeState.bowler_id }
 
+            // Increment balls for all legal deliveries (Rule 1 & Bug Fix)
+            const isLegalBall = ballType !== "WIDE" && ballType !== "NO_BALL" && ballType !== "Wide" && ballType !== "No Ball"
+            if (isLegalBall) {
+                innings.balls++
+            }
+
             // Apply Logic based on Ball Type
             if (ballType === "RUN") {
                 innings.runs += runs;
-                innings.balls++;
                 // Striker rotation for odd runs (Bug Fix 2)
                 if (runs % 2 !== 0) {
                     let temp = striker.id;
                     striker.id = nonStriker.id;
                     nonStriker.id = temp;
                 }
-            } else if (ballType === "WIDE") {
+            } else if (ballType === "WIDE" || ballType === "Wide") {
                 innings.runs += 1 + runs;
-                // Wides don't increment ball count (Bug Fix 3)
             } else if (ballType === "NO_BALL" || ballType === "No Ball") {
                 innings.runs += 1 + runs;
-                // No balls don't increment ball count (Bug Fix 3)
             } else if (ballType === "BYE" || ballType === "LEG_BYE") {
                 innings.runs += runs;
-                innings.balls++;
                 // Striker rotation for odd runs (Bug Fix 2)
                 if (runs % 2 !== 0) {
                     let temp = striker.id;
@@ -233,10 +235,7 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
             if (isWicket) {
                 innings.wickets++;
-                // Check if it's a legal ball wicket (Bug Fix 3)
-                if (ballType !== "WIDE" && ballType !== "NO_BALL") {
-                    innings.balls++;
-                }
+                // Ball count already handled by isLegalBall above
                 setOutPlayerIds(prev => [...prev, activeState.striker_id!])
                 striker.id = null; // next batsman needed
             }
