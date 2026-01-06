@@ -45,3 +45,9 @@ run_tests.js
 test_report.json
 test_match_result.js
 test_cricket_rules.js
+test_out.txt
+test_results_debug.txt
+test_results_debug_utf8.txt
+build_log.txt
+build_error.log
+
