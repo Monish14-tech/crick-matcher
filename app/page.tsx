@@ -22,12 +22,24 @@ interface Match {
 }
 
 import { SlidingTicker } from "@/components/SlidingTicker"
+import { Odometer } from "@/components/Odometer"
+import { SlidingTeams } from "@/components/SlidingTeams"
 
 export default function Home() {
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
+  const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
+    async function fetchStats() {
+      const { count } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Completed')
+
+      setCompletedCount(count || 0)
+    }
+    fetchStats()
     async function fetchMatches() {
       if (!supabase) {
         setLoading(false)
@@ -64,7 +76,27 @@ export default function Home() {
 
       setLoading(false)
     }
+
     fetchMatches()
+
+    // Real-time subscription for score updates
+    const channel = supabase
+      .channel('home-score-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_scores' },
+        () => fetchMatches()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'matches' },
+        () => fetchMatches()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const liveMatches = matches.filter(m => m.status === 'Live')
@@ -101,15 +133,23 @@ export default function Home() {
                 <p className="text-xl text-muted-foreground max-w-lg leading-relaxed font-medium">
                   Professional cricket management for the digital era. Schedule, score, and track performance with absolute precision.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button size="lg" className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl shadow-primary/20" asChild>
-                    <Link href="/teams/register">
-                      Register Team <ArrowRight className="ml-2 h-5 w-5" />
-                    </Link>
-                  </Button>
-                  <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-black rounded-2xl border-2 hover:bg-slate-50" asChild>
-                    <Link href="/schedule">Match Schedule</Link>
-                  </Button>
+                <div className="flex flex-col sm:flex-row gap-8 items-center">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Button size="lg" className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl shadow-primary/20" asChild>
+                      <Link href="/teams/register">
+                        Register Team <ArrowRight className="ml-2 h-5 w-5" />
+                      </Link>
+                    </Button>
+                    <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-black rounded-2xl border-2 hover:bg-slate-50" asChild>
+                      <Link href="/schedule">Match Schedule</Link>
+                    </Button>
+                  </div>
+
+                  <div className="hidden xl:block h-16 w-px bg-slate-200" />
+
+                  <div className="hidden xl:block">
+                    <Odometer value={completedCount} label="Live Games Completed" />
+                  </div>
                 </div>
               </motion.div>
 
@@ -126,6 +166,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Sliding Window (Teams) */}
+        <SlidingTeams />
 
 
         {/* Live Match Strip */}

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase"
 import { SupabaseError } from "@/components/SupabaseError"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { BallByBallTicker } from "@/components/BallByBallTicker"
 
 // --- TYPES ---
 interface Team {
@@ -158,7 +159,35 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                         )}
                     </div>
                 </div>
+
+                {/* Most Impactful Players (Post-Match) */}
+                {match.status === 'Completed' && (() => {
+                    const { topBatter, topBowler } = calculateImpactPlayers(events, players);
+                    return (
+                        <div className="max-w-6xl mx-auto px-4 -mt-32 mb-12 relative z-20">
+                            <div className="grid md:grid-cols-2 gap-8">
+                                {topBatter && (
+                                    <ImpactPlayerCard
+                                        player={topBatter}
+                                        type="Batter"
+                                        icon={<Zap className="h-6 w-6 text-primary" />}
+                                    />
+                                )}
+                                {topBowler && (
+                                    <ImpactPlayerCard
+                                        player={topBowler}
+                                        type="Bowler"
+                                        icon={<Target className="h-6 w-6 text-red-500" />}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
+
+            {/* Ball by Ball Ticker (Live Feed) */}
+            {match.status === 'Live' && <BallByBallTicker matchId={id} />}
 
             <div className="max-w-6xl mx-auto px-4 -mt-10 mb-20 relative z-10">
                 {/* Result Summary Table (Structured) */}
@@ -452,6 +481,70 @@ function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
                         </div>
                     </div>
                 )}
+            </CardContent>
+        </Card>
+    )
+}
+
+function calculateImpactPlayers(events: any[], players: any[]) {
+    const batters: any = {}
+    const bowlers: any = {}
+
+    events.forEach(e => {
+        // Batting
+        if (e.batter_id) {
+            if (!batters[e.batter_id]) batters[e.batter_id] = { name: players.find(p => p.id === e.batter_id)?.name, R: 0, B: 0 }
+            if (e.extra_type !== 'WIDE') {
+                batters[e.batter_id].R += (e.runs_batter || 0)
+                batters[e.batter_id].B += 1
+            }
+        }
+
+        // Bowling
+        if (e.bowler_id) {
+            if (!bowlers[e.bowler_id]) bowlers[e.bowler_id] = { name: players.find(p => p.id === e.bowler_id)?.name, W: 0, R: 0, B: 0 }
+            if (e.wicket_type) bowlers[e.bowler_id].W += 1
+            bowlers[e.bowler_id].R += (e.runs_batter + (e.extra_type === 'WIDE' || e.extra_type === 'NO_BALL' ? (e.runs_extras || 0) : 0))
+            if (e.extra_type !== 'WIDE' && e.extra_type !== 'NO_BALL') bowlers[e.bowler_id].B += 1
+        }
+    })
+
+    const topBatter = Object.values(batters)
+        .sort((a: any, b: any) => {
+            if (b.R !== a.R) return b.R - a.R
+            const srA = a.B > 0 ? (a.R / a.B) * 100 : 0
+            const srB = b.B > 0 ? (b.R / b.B) * 100 : 0
+            return srB - srA
+        })[0]
+
+    const topBowler = Object.values(bowlers)
+        .sort((a: any, b: any) => {
+            if (b.W !== a.W) return b.W - a.W
+            const econA = a.B > 0 ? (a.R / (a.B / 6)) : 0
+            const econB = b.B > 0 ? (b.R / (b.B / 6)) : 0
+            return econA - econB // Lower economy is better
+        })[0]
+
+    return { topBatter, topBowler }
+}
+
+function ImpactPlayerCard({ player, type, icon }: any) {
+    const stat = type === "Batter"
+        ? `${player.R} Runs (${player.B} Balls)`
+        : `${player.W} Wickets (${player.R} Runs)`
+
+    return (
+        <Card className="rounded-[2.5rem] border-none shadow-2xl overflow-hidden bg-slate-900 text-white relative group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-16 -mt-16 blur-3xl opacity-20" />
+            <CardContent className="p-8 flex items-center gap-6 relative z-10">
+                <div className="h-20 w-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    {icon}
+                </div>
+                <div>
+                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] mb-1">Impact {type}</p>
+                    <h3 className="text-3xl font-black italic uppercase leading-none mb-2">{player.name}</h3>
+                    <p className="text-xl font-black italic text-white/40">{stat}</p>
+                </div>
             </CardContent>
         </Card>
     )

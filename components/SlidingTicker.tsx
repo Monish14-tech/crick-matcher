@@ -123,41 +123,39 @@ export function SlidingTicker() {
     if (items.length === 0) return null
 
     return (
-        <div className="w-full bg-slate-900 border-b border-white/10 overflow-hidden relative z-50">
-            <div className="flex whitespace-nowrap animate-marquee">
-                {/* Render twice for seamless loop */}
-                {[...items, ...items].map((item, i) => (
-                    <div key={`${item.id}-${i}`} className="flex items-center mx-8 py-3 space-x-3 text-sm font-medium">
+        <div className="w-full bg-slate-950 border-b border-white/5 overflow-hidden relative z-50 py-1">
+            <div className="flex whitespace-nowrap animate-marquee items-center">
+                {/* Render multiple times for seamless loop */}
+                {[...items, ...items, ...items].map((item, i) => (
+                    <div key={`${item.id}-${i}`} className="flex items-center mx-12 space-x-4 text-sm font-bold">
                         {item.type === 'live' && (
-                            <span className="flex items-center space-x-2 text-white">
+                            <div className="flex items-center space-x-3 bg-red-500/10 px-4 py-1.5 rounded-full border border-red-500/20">
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                                 </span>
-                                <span className="text-red-400 font-bold uppercase tracking-wider">Live:</span>
-                                <span className="text-slate-200">{item.text}</span>
-                                <span className="text-yellow-400 font-mono font-bold">{item.detail}</span>
-                            </span>
+                                <span className="text-red-500 text-[10px] uppercase tracking-[0.2em] font-black">Live Feed</span>
+                                <span className="text-slate-300 font-medium">{item.text}</span>
+                                <span className="text-cyan-400 font-mono font-black drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">{item.detail}</span>
+                            </div>
                         )}
 
                         {item.type === 'fixture' && (
-                            <span className="flex items-center space-x-2 text-slate-400">
-                                <Calendar className="h-4 w-4 text-blue-400" />
-                                <span className="text-blue-400 font-bold uppercase tracking-wider">Fixture:</span>
-                                <span className="text-slate-300">{item.text}</span>
-                                <span className="text-slate-500">| {item.detail}</span>
-                            </span>
+                            <div className="flex items-center space-x-3 bg-blue-500/10 px-4 py-1.5 rounded-full border border-blue-500/20">
+                                <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                                <span className="text-blue-400 text-[10px] uppercase tracking-[0.2em] font-black">Upcoming</span>
+                                <span className="text-slate-300 font-medium">{item.text}</span>
+                                <span className="text-slate-500 font-medium">| {item.detail}</span>
+                            </div>
                         )}
 
                         {item.type === 'news' && (
-                            <span className="flex items-center space-x-2 text-slate-400">
-                                <Trophy className="h-4 w-4 text-amber-400" />
-                                <span className="text-amber-400 font-bold uppercase tracking-wider">News:</span>
-                                <span className="text-slate-300">{item.text}</span>
-                            </span>
+                            <div className="flex items-center space-x-3 bg-amber-500/10 px-4 py-1.5 rounded-full border border-amber-500/20">
+                                <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                                <span className="text-amber-400 text-[10px] uppercase tracking-[0.2em] font-black">Event</span>
+                                <span className="text-slate-300 font-medium">{item.text}</span>
+                            </div>
                         )}
-
-                        <div className="h-4 w-[1px] bg-white/10 ml-6" />
                     </div>
                 ))}
             </div>
