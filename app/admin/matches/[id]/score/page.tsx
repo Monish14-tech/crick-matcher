@@ -191,6 +191,12 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         // Extras logic for test suite compatibility (Bug Fix 3)
         const isExtraBall = ['Wide', 'No Ball'].includes(ballType);
 
+        // Guard: Prevent logging if match is already complete or innings should have ended
+        if (score.balls >= totalOversLimit * 6) {
+            alert("This innings is already complete.")
+            return
+        }
+
         try {
             // Local copy for logic processing
             let innings = {
@@ -200,7 +206,8 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 overs: Math.floor(score.balls / 6)
             }
 
-            let striker = { id: activeState.striker_id, runs: 0, balls: 0 } // Base vals retrieved from stats later
+            // ... (rest of the striker/bowler logic)
+            let striker = { id: activeState.striker_id, runs: 0, balls: 0 }
             let nonStriker = { id: activeState.non_striker_id }
             let bowler = { id: activeState.bowler_id }
 
@@ -213,7 +220,6 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             // Apply Logic based on Ball Type
             if (ballType === "RUN") {
                 innings.runs += runs;
-                // Striker rotation for odd runs (Bug Fix 2)
                 if (runs % 2 !== 0) {
                     let temp = striker.id;
                     striker.id = nonStriker.id;
@@ -225,7 +231,6 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 innings.runs += 1 + runs;
             } else if (ballType === "BYE" || ballType === "LEG_BYE") {
                 innings.runs += runs;
-                // Striker rotation for odd runs (Bug Fix 2)
                 if (runs % 2 !== 0) {
                     let temp = striker.id;
                     striker.id = nonStriker.id;
@@ -235,17 +240,21 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
             if (isWicket) {
                 innings.wickets++;
-                // Ball count already handled by isLegalBall above
                 setOutPlayerIds(prev => [...prev, activeState.striker_id!])
-                striker.id = null; // next batsman needed
+                striker.id = null;
+            }
+
+            // FINAL OVER CHECK - Prevent 7th ball
+            const maxBalls = totalOversLimit * 6
+            if (innings.balls > maxBalls) {
+                innings.balls = maxBalls // Force cap
             }
 
             // Over Completion Logic (Bug Fix 2: Strike rotation on over end)
             let overJustEnded = false;
             const ballsInThisOver = innings.balls % 6;
-            if (innings.balls > 0 && ballsInThisOver === 0 && (ballType !== "WIDE" && ballType !== "NO_BALL")) {
+            if (innings.balls > 0 && ballsInThisOver === 0 && isLegalBall) {
                 overJustEnded = true;
-                // Always swap strikers at the end of a completed over (Rule 2)
                 let temp = striker.id;
                 striker.id = nonStriker.id;
                 nonStriker.id = temp;
@@ -256,8 +265,8 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             const newEvent = {
                 match_id: id,
                 innings_no: activeState.innings_no,
-                over_no: Math.floor((innings.balls - (ballType === "WIDE" || ballType === "NO_BALL" ? 0 : 1)) / 6),
-                ball_no: (innings.balls % 6 === 0 && (ballType !== "WIDE" && ballType !== "NO_BALL") ? 6 : innings.balls % 6) || (ballType === "WIDE" || ballType === "NO_BALL" ? (innings.balls % 6) + 1 : 6),
+                over_no: Math.floor((innings.balls - (isLegalBall ? 1 : 0)) / 6),
+                ball_no: (innings.balls % 6 === 0 && isLegalBall ? 6 : innings.balls % 6) || (isLegalBall ? 6 : (innings.balls % 6) + 1),
                 batter_id: activeState.striker_id,
                 bowler_id: activeState.bowler_id,
                 non_striker_id: activeState.non_striker_id,
@@ -274,30 +283,26 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             // Check Innings End (Bug Fix 1 & 4)
             const maxWickets = 10
             const isAllOut = innings.wickets >= maxWickets
-            const isOversComplete = Math.floor(innings.balls / 6) >= totalOversLimit
+            const isOversComplete = innings.balls >= maxBalls
             const isTargetReached = activeState.innings_no === 2 && targetScore !== null && innings.runs >= targetScore
 
             const inningsEnds = isAllOut || isOversComplete || isTargetReached
 
             // Match Result Calculation (Rule 5)
             if (activeState.innings_no === 2 && inningsEnds) {
-                let result = ""
+                let status = 'Completed'
                 let winner_id = null
-                const battingTeamName = match.team_a_id === activeState.batting_team_id ? match.team_a.name : match.team_b.name
-                const bowlingTeamName = match.team_a_id === activeState.batting_team_id ? match.team_b.name : match.team_a.name
+
+                const teamAId = match.team_a_id || (match as any).team_a?.id
+                const teamBId = match.team_b_id || (match as any).team_b?.id
 
                 if (innings.runs >= (targetScore || 0)) {
-                    result = `${battingTeamName} won by ${10 - innings.wickets} wickets`
                     winner_id = activeState.batting_team_id
-                } else {
-                    if (innings.runs === (targetScore || 0) - 1) {
-                        result = "Match Tied"
-                    } else {
-                        result = `${bowlingTeamName} won by ${(targetScore || 0) - innings.runs - 1} runs`
-                        winner_id = activeState.batting_team_id === match.team_a_id ? match.team_b_id : match.team_a_id
-                    }
+                } else if (innings.runs < (targetScore || 0) - 1) {
+                    winner_id = activeState.batting_team_id === teamAId ? teamBId : teamAId
                 }
-                await supabase.from('matches').update({ status: 'Completed', winner_id }).eq('id', id)
+
+                await supabase.from('matches').update({ status, winner_id }).eq('id', id)
                 setShowInningsSummary(true)
             } else if (activeState.innings_no === 1 && inningsEnds) {
                 setShowInningsSummary(true)

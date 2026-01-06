@@ -115,9 +115,13 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const currentInningsNo = activeState?.innings_no || (events.length > 0 ? events[events.length - 1].innings_no : 1)
     const currentInningsEvents = events.filter(e => e.innings_no === currentInningsNo)
 
+    const oversCap = parseInt(match.overs_type.match(/(\d+)/)?.[0] || "20")
+    const maxMatchBalls = oversCap * 6
+
     const liveRuns = currentInningsEvents.reduce((sum, e) => sum + (e.runs_batter || 0) + (e.runs_extras || 0), 0)
     const liveWickets = currentInningsEvents.filter(e => e.wicket_type).length
-    const liveBalls = currentInningsEvents.filter(e => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+    const rawLiveBalls = currentInningsEvents.filter(e => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+    const liveBalls = Math.min(rawLiveBalls, maxMatchBalls)
     const liveOvers = Math.floor(liveBalls / 6) + (liveBalls % 6) / 10
 
     // Dynamic Scores (Merging calculated live data with DB scores)
@@ -289,8 +293,8 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {[
-                                            { team: (match as any).team_a, score: teamAScore, isWin: (match as any).winner_id === (match as any).team_a_id },
-                                            { team: (match as any).team_b, score: teamBScore, isWin: (match as any).winner_id === (match as any).team_b_id }
+                                            { team: (match as any).team_a, score: teamAScore, isWin: (match as any).winner_id === (match as any).team_a.id },
+                                            { team: (match as any).team_b, score: teamBScore, isWin: (match as any).winner_id === (match as any).team_b.id }
                                         ].map((row, idx) => (
                                             <tr key={idx} className={cn("hover:bg-slate-50 transition-colors", row.isWin && "bg-primary/5")}>
                                                 <td className="px-8 py-6">
@@ -329,16 +333,16 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     <SummaryCard
                         team={(match as any).team_a}
                         score={teamAScore}
-                        isWinner={(match as any).winner_id === (match as any).team_a_id}
-                        isLive={activeState?.batting_team_id === (match as any).team_a_id && (match as any).status === 'Live'}
+                        isWinner={(match as any).winner_id === (match as any).team_a.id}
+                        isLive={activeState?.batting_team_id === (match as any).team_a.id && (match as any).status === 'Live'}
                         matchStatus={(match as any).status}
                         targetScore={(!teamAScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
                     <SummaryCard
                         team={(match as any).team_b}
                         score={teamBScore}
-                        isWinner={(match as any).winner_id === (match as any).team_b_id}
-                        isLive={activeState?.batting_team_id === (match as any).team_b_id && (match as any).status === 'Live'}
+                        isWinner={(match as any).winner_id === (match as any).team_b.id}
+                        isLive={activeState?.batting_team_id === (match as any).team_b.id && (match as any).status === 'Live'}
                         matchStatus={(match as any).status}
                         targetScore={(!teamBScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
