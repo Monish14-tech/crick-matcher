@@ -93,8 +93,14 @@ export default function Home() {
       )
       .subscribe()
 
+    // Auto-refresh interval (0.5 seconds) for live score tracking
+    const interval = setInterval(() => {
+      fetchMatches()
+    }, 500)
+
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(interval)
     }
   }, [])
 

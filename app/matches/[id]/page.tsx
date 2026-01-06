@@ -62,8 +62,8 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const [players, setPlayers] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchData = async () => {
-        setLoading(true)
+    const fetchData = async (isInitial = false) => {
+        if (isInitial) setLoading(true)
         try {
             const { data: m } = await supabase.from('matches').select('*, team_a:teams!team_a_id(*), team_b:teams!team_b_id(*), ground:grounds(*)').eq('id', id).single()
             if (m) setMatch(m)
@@ -81,9 +81,20 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     }
 
     useEffect(() => {
-        fetchData()
+        fetchData(true)
+
+        // Real-time subscription for immediate updates
         const channel = supabase.channel(`match-${id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${id}` }, () => fetchData()).subscribe()
-        return () => { supabase.removeChannel(channel) }
+
+        // Auto-refresh interval (0.5 seconds) as requested for live score tracking
+        const interval = setInterval(() => {
+            fetchData()
+        }, 500)
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(interval)
+        }
     }, [id])
 
     if (loading || !match) return <div className="p-20 text-center font-black animate-pulse text-primary italic underline uppercase tracking-tighter text-4xl">Syncing Match Core...</div>

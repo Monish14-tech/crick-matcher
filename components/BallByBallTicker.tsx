@@ -42,8 +42,14 @@ export function BallByBallTicker({ matchId }: { matchId: string }) {
             )
             .subscribe()
 
+        // Auto-refresh interval (0.5 seconds) for live timeline tracking
+        const interval = setInterval(() => {
+            fetchEvents()
+        }, 500)
+
         return () => {
             supabase.removeChannel(channel)
+            clearInterval(interval)
         }
     }, [matchId])
 
