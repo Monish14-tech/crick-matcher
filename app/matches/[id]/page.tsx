@@ -545,10 +545,16 @@ function calculateImpactPlayers(events: any[], players: any[]): { topBatter?: Im
     return { topBatter, topBowler }
 }
 
-function ImpactPlayerCard({ player, type, icon }: any) {
+interface ImpactPlayerCardProps {
+    player: ImpactBatter | ImpactBowler;
+    type: "Batter" | "Bowler";
+    icon: React.ReactNode;
+}
+
+function ImpactPlayerCard({ player, type, icon }: ImpactPlayerCardProps) {
     const stat = type === "Batter"
-        ? `${player.R} Runs (${player.B} Balls)`
-        : `${player.W} Wickets (${player.R} Runs)`
+        ? `${(player as ImpactBatter).R} Runs (${(player as ImpactBatter).B} Balls)`
+        : `${(player as ImpactBowler).W} Wickets (${(player as ImpactBowler).R} Runs)`
 
     return (
         <Card className="rounded-[2.5rem] border-none shadow-2xl overflow-hidden bg-slate-900 text-white relative group">
