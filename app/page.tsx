@@ -221,8 +221,8 @@ export default function Home() {
               <div className="space-y-1">
                 <div className="flex items-center gap-4">
                   <h2 className="text-4xl font-black italic tracking-tighter uppercase">Next Fixtures</h2>
-                  <div className="px-6 py-2.5 bg-primary rounded-2xl shadow-2xl shadow-primary/40 flex items-center gap-3 border-2 border-white/10">
-                    <span className="h-3 w-3 bg-white rounded-full animate-pulse shadow-[0_0_10px_white]" />
+                  <div className="px-6 py-2.5 bg-slate-900 rounded-2xl shadow-2xl shadow-primary/20 flex items-center gap-3 border-2 border-slate-800">
+                    <span className="h-3 w-3 bg-primary rounded-full animate-pulse shadow-[0_0_10px_theme(colors.primary)]" />
                     <span className="text-xs font-black text-white uppercase tracking-[0.2em]">{completedCount} COMPLETED</span>
                   </div>
                 </div>
