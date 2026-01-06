@@ -159,7 +159,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
                     <div className="grid lg:grid-cols-2 gap-16 items-center">
                         <div className="text-center lg:text-left">
-                            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter uppercase leading-[0.85] mb-8">
+                            <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase leading-[0.8] mb-10">
                                 MATCH <br /><span className="text-primary">CENTRE</span>
                             </h1>
                             <div className="flex flex-wrap justify-center lg:justify-start gap-4">
@@ -237,9 +237,13 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             </div>
 
             {/* Ball by Ball Ticker (Live Feed) */}
-            {match.status === 'Live' && <BallByBallTicker matchId={id} />}
+            {match.status === 'Live' && (
+                <div className="bg-white border-y border-slate-200 shadow-sm relative z-30">
+                    <BallByBallTicker matchId={id} />
+                </div>
+            )}
 
-            <div className="max-w-6xl mx-auto px-4 -mt-10 mb-20 relative z-10">
+            <div className="max-w-6xl mx-auto px-4 py-24 relative z-10">
                 {/* Result Summary Table (Structured) */}
                 {match.status === 'Completed' && (
                     <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden mb-8 bg-white">

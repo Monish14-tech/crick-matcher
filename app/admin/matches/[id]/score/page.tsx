@@ -309,7 +309,7 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 setShowInningsSummary(true)
             }
 
-            // Update Match Scores
+            // Update Match Scores (Explicitly handle conflict for (match_id, team_id))
             const oversPlayedDecimal = parseFloat(Math.floor(innings.balls / 6) + "." + (innings.balls % 6))
             await supabase.from('match_scores').upsert({
                 match_id: id,
@@ -318,7 +318,7 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 wickets_lost: innings.wickets,
                 overs_played: oversPlayedDecimal,
                 is_first_innings: activeState.innings_no === 1
-            })
+            }, { onConflict: 'match_id,team_id' })
 
             // Update Active State
             const nextActiveState = {
