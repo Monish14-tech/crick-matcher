@@ -166,20 +166,20 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     return (
                         <div className="max-w-6xl mx-auto px-4 -mt-32 mb-12 relative z-20">
                             <div className="grid md:grid-cols-2 gap-8">
-                                {topBatter && (
+                                {topBatter ? (
                                     <ImpactPlayerCard
                                         player={topBatter}
                                         type="Batter"
                                         icon={<Zap className="h-6 w-6 text-primary" />}
                                     />
-                                )}
-                                {topBowler && (
+                                ) : null}
+                                {topBowler ? (
                                     <ImpactPlayerCard
                                         player={topBowler}
                                         type="Bowler"
                                         icon={<Target className="h-6 w-6 text-red-500" />}
                                     />
-                                )}
+                                ) : null}
                             </div>
                         </div>
                     );
@@ -486,14 +486,29 @@ function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
     )
 }
 
-function calculateImpactPlayers(events: any[], players: any[]) {
-    const batters: any = {}
-    const bowlers: any = {}
+interface ImpactBatter {
+    name: string;
+    R: number;
+    B: number;
+}
+
+interface ImpactBowler {
+    name: string;
+    W: number;
+    R: number;
+    B: number;
+}
+
+function calculateImpactPlayers(events: any[], players: any[]): { topBatter?: ImpactBatter, topBowler?: ImpactBowler } {
+    const batters: Record<string, ImpactBatter> = {}
+    const bowlers: Record<string, ImpactBowler> = {}
 
     events.forEach(e => {
         // Batting
         if (e.batter_id) {
-            if (!batters[e.batter_id]) batters[e.batter_id] = { name: players.find(p => p.id === e.batter_id)?.name, R: 0, B: 0 }
+            if (!batters[e.batter_id]) {
+                batters[e.batter_id] = { name: players.find(p => p.id === e.batter_id)?.name || "Unknown", R: 0, B: 0 }
+            }
             if (e.extra_type !== 'WIDE') {
                 batters[e.batter_id].R += (e.runs_batter || 0)
                 batters[e.batter_id].B += 1
@@ -502,7 +517,9 @@ function calculateImpactPlayers(events: any[], players: any[]) {
 
         // Bowling
         if (e.bowler_id) {
-            if (!bowlers[e.bowler_id]) bowlers[e.bowler_id] = { name: players.find(p => p.id === e.bowler_id)?.name, W: 0, R: 0, B: 0 }
+            if (!bowlers[e.bowler_id]) {
+                bowlers[e.bowler_id] = { name: players.find(p => p.id === e.bowler_id)?.name || "Unknown", W: 0, R: 0, B: 0 }
+            }
             if (e.wicket_type) bowlers[e.bowler_id].W += 1
             bowlers[e.bowler_id].R += (e.runs_batter + (e.extra_type === 'WIDE' || e.extra_type === 'NO_BALL' ? (e.runs_extras || 0) : 0))
             if (e.extra_type !== 'WIDE' && e.extra_type !== 'NO_BALL') bowlers[e.bowler_id].B += 1
@@ -510,7 +527,7 @@ function calculateImpactPlayers(events: any[], players: any[]) {
     })
 
     const topBatter = Object.values(batters)
-        .sort((a: any, b: any) => {
+        .sort((a, b) => {
             if (b.R !== a.R) return b.R - a.R
             const srA = a.B > 0 ? (a.R / a.B) * 100 : 0
             const srB = b.B > 0 ? (b.R / b.B) * 100 : 0
@@ -518,7 +535,7 @@ function calculateImpactPlayers(events: any[], players: any[]) {
         })[0]
 
     const topBowler = Object.values(bowlers)
-        .sort((a: any, b: any) => {
+        .sort((a, b) => {
             if (b.W !== a.W) return b.W - a.W
             const econA = a.B > 0 ? (a.R / (a.B / 6)) : 0
             const econB = b.B > 0 ? (b.R / (b.B / 6)) : 0
