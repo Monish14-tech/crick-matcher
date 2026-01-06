@@ -108,8 +108,35 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
     if (loading || !match) return <div className="p-20 text-center font-black animate-pulse text-primary italic underline uppercase tracking-tighter text-4xl">Syncing Match Core...</div>
 
-    const teamAScore = scores.find(s => s.team_id === match.team_a.id)
-    const teamBScore = scores.find(s => s.team_id === match.team_b.id)
+    const firstInningsScore = scores.find(s => s.is_first_innings)
+    const currentTarget = firstInningsScore ? firstInningsScore.runs_scored + 1 : null
+
+    // Calculate Live Totals from Events (Sync Fix)
+    const currentInningsNo = activeState?.innings_no || (events.length > 0 ? events[events.length - 1].innings_no : 1)
+    const currentInningsEvents = events.filter(e => e.innings_no === currentInningsNo)
+
+    const liveRuns = currentInningsEvents.reduce((sum, e) => sum + (e.runs_batter || 0) + (e.runs_extras || 0), 0)
+    const liveWickets = currentInningsEvents.filter(e => e.wicket_type).length
+    const liveBalls = currentInningsEvents.filter(e => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+    const liveOvers = Math.floor(liveBalls / 6) + (liveBalls % 6) / 10
+
+    // Dynamic Scores (Merging calculated live data with DB scores)
+    const getTeamScore = (teamId: string) => {
+        const dbScore = scores.find(s => s.team_id === teamId)
+        if (match.status === 'Live' && activeState?.batting_team_id === teamId) {
+            return {
+                ...dbScore,
+                runs_scored: liveRuns,
+                wickets_lost: liveWickets,
+                overs_played: liveOvers,
+                team_id: teamId
+            }
+        }
+        return dbScore
+    }
+
+    const teamAScore = getTeamScore(match.team_a.id)
+    const teamBScore = getTeamScore(match.team_b.id)
 
     // Result Calculation (Standardized by User Rule 5)
     let resultMessage = ""
@@ -121,8 +148,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
         if (firstInnings && secondInnings) {
             const target = firstInnings.runs_scored + 1
             const battingTeamName = match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name
-            const bowlingTeamName = match.winner_id === match.team_a.id ? match.team_b.name : match.team_a.name
-            winnerName = match.winner_id === match.team_a.id ? match.team_a.name : match.team_b.name
+            winnerName = battingTeamName
 
             if (secondInnings.runs_scored >= target) {
                 resultMessage = `${battingTeamName} won by ${10 - secondInnings.wickets_lost} wickets`
@@ -133,7 +159,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             }
         }
     } else if (match.status === 'Live') {
-        const liveInnings = events[events.length - 1]?.innings_no || 1
+        const liveInnings = currentInningsNo
         resultMessage = `Innings ${liveInnings} in Progress`
     } else {
         resultMessage = "Match Scheduled"
@@ -143,9 +169,6 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const totalWickets = scores.reduce((sum, s) => sum + s.wickets_lost, 0)
     const totalFours = events.filter(e => e.runs_batter === 4).length
     const totalSixes = events.filter(e => e.runs_batter === 6).length
-
-    const firstInningsScore = scores.find(s => s.is_first_innings)
-    const currentTarget = firstInningsScore ? firstInningsScore.runs_scored + 1 : null
 
     return (
         <div className="min-h-screen bg-slate-100/50">
@@ -432,9 +455,12 @@ function StatBox({ label, value, icon }: any) {
 
 function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
     const inningsEvents = events.filter((e: any) => e.innings_no === inningsNo)
-    const score = scores.find((s: any) => s.is_first_innings === (inningsNo === 1))
 
-    if (inningsEvents.length === 0 && !score) return null
+    const runs = inningsEvents.reduce((sum: number, e: any) => sum + (e.runs_batter || 0) + (e.runs_extras || 0), 0)
+    const wickets = inningsEvents.filter((e: any) => e.wicket_type).length
+    const balls = inningsEvents.filter((e: any) => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+
+    if (inningsEvents.length === 0) return null
 
     // Batter Stats Engine (Rule 7)
     const batterStats: any = {}
@@ -502,8 +528,8 @@ function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-5xl font-black italic text-primary">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
-                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest">{formatOvers(getBallsFromDecimal(score?.overs_played || 0))} OVERS</p>
+                    <p className="text-5xl font-black italic text-primary">{runs}/{wickets}</p>
+                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest">{formatOvers(balls)} OVERS</p>
                 </div>
             </CardHeader>
             <CardContent className="p-10 space-y-16">
