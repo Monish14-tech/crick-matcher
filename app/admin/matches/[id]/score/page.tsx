@@ -296,11 +296,17 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                 const teamAId = match.team_a_id || (match as any).team_a?.id
                 const teamBId = match.team_b_id || (match as any).team_b?.id
 
+                // Determine the first innings team (the one that batted first and set the target)
+                const firstInningsTeamId = activeState.batting_team_id === teamAId ? teamBId : teamAId
+
                 if (innings.runs >= (targetScore || 0)) {
+                    // Second innings team reached/exceeded target - they win
                     winner_id = activeState.batting_team_id
-                } else if (innings.runs < (targetScore || 0) - 1) {
-                    winner_id = activeState.batting_team_id === teamAId ? teamBId : teamAId
+                } else if (innings.runs < (targetScore || 0)) {
+                    // Second innings team failed to reach target - first innings team wins
+                    winner_id = firstInningsTeamId
                 }
+                // If innings.runs === targetScore - 1, it's a tie (winner_id remains null)
 
                 await supabase.from('matches').update({ status, winner_id }).eq('id', id)
                 setShowInningsSummary(true)

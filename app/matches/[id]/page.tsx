@@ -149,19 +149,27 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
         const firstInnings = scores.find(s => s.is_first_innings)
         const secondInnings = scores.find(s => !s.is_first_innings)
 
-        if (firstInnings && secondInnings) {
+        if (firstInnings && secondInnings && match.winner_id) {
             const target = firstInnings.runs_scored + 1
-            const isWinnerA = match.winner_id === match.team_a_id
-            const battingTeamName = isWinnerA ? match.team_a.name : match.team_b.name
-            winnerName = battingTeamName
 
-            if (secondInnings.runs_scored >= target) {
-                resultMessage = `${battingTeamName} won by ${10 - secondInnings.wickets_lost} wickets`
-            } else if (secondInnings.runs_scored < (firstInnings.runs_scored || 0)) {
-                resultMessage = `${winnerName} won by ${(firstInnings.runs_scored || 0) - secondInnings.runs_scored} runs`
+            // Determine which team won
+            const winnerTeam = match.winner_id === match.team_a_id ? match.team_a : match.team_b
+            winnerName = winnerTeam.name
+
+            // Determine if winner batted first or second
+            const winnerBattedFirst = (firstInnings.team_id === match.winner_id)
+
+            if (winnerBattedFirst) {
+                // Winner batted first, so they won by runs
+                const runMargin = firstInnings.runs_scored - secondInnings.runs_scored
+                resultMessage = `${winnerName} won by ${runMargin} runs`
             } else {
-                resultMessage = "Match Tied"
+                // Winner batted second, so they won by wickets
+                const wicketsRemaining = 10 - secondInnings.wickets_lost
+                resultMessage = `${winnerName} won by ${wicketsRemaining} wickets`
             }
+        } else if (firstInnings && secondInnings && !match.winner_id) {
+            resultMessage = "Match Tied"
         }
     } else if (match.status === 'Live') {
         const liveInnings = currentInningsNo
@@ -274,21 +282,21 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             <div className="max-w-6xl mx-auto px-4 py-24 relative z-10">
                 {/* Result Summary Table (Structured) */}
                 {(match as any).status === 'Completed' && (
-                    <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden mb-12 bg-white">
-                        <CardHeader className="bg-slate-50 p-6 border-b">
-                            <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-400">
-                                <Swords className="h-4 w-4 text-primary" /> Match Summary Breakdown
+                    <Card className="rounded-[2.5rem] border-2 border-slate-900 shadow-2xl overflow-hidden mb-12 bg-gradient-to-br from-slate-50 to-white">
+                        <CardHeader className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 border-b-4 border-primary">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-3 text-white">
+                                <Swords className="h-6 w-6 text-primary" /> Match Summary Breakdown
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-[600px]">
-                                    <thead className="bg-slate-50/50">
-                                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                                            <th className="px-8 py-4 text-left">Team</th>
-                                            <th className="px-8 py-4 text-center">Total Score</th>
-                                            <th className="px-8 py-4 text-center">Overs</th>
-                                            <th className="px-8 py-4 text-right">Match Role</th>
+                                    <thead className="bg-slate-900">
+                                        <tr className="text-xs font-black uppercase tracking-widest text-white border-b-2 border-primary">
+                                            <th className="px-8 py-5 text-left">Team</th>
+                                            <th className="px-8 py-5 text-center">Total Score</th>
+                                            <th className="px-8 py-5 text-center">Overs</th>
+                                            <th className="px-8 py-5 text-right">Match Role</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -296,27 +304,29 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                                             { team: (match as any).team_a, score: teamAScore, isWin: (match as any).winner_id === (match as any).team_a.id },
                                             { team: (match as any).team_b, score: teamBScore, isWin: (match as any).winner_id === (match as any).team_b.id }
                                         ].map((row, idx) => (
-                                            <tr key={idx} className={cn("hover:bg-slate-50 transition-colors", row.isWin && "bg-primary/5")}>
-                                                <td className="px-8 py-6">
+                                            <tr key={idx} className={cn("hover:bg-slate-100 transition-all duration-200", row.isWin && "bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary")}>
+                                                <td className="px-8 py-8">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={cn("h-4 w-1 rounded-full", row.isWin ? "bg-primary" : "bg-slate-300")} />
-                                                        <span className="font-black italic uppercase text-xl text-slate-900 leading-none">{row.team.name}</span>
-                                                        {row.isWin && <CheckCircle2 className="h-5 w-5 text-primary fill-primary/10" />}
+                                                        <div className={cn("h-8 w-2 rounded-full shadow-lg", row.isWin ? "bg-gradient-to-b from-primary to-primary/70" : "bg-slate-400")} />
+                                                        <span className="font-black italic uppercase text-2xl text-slate-900 leading-none tracking-tight">{row.team.name}</span>
+                                                        {row.isWin && <CheckCircle2 className="h-6 w-6 text-primary fill-primary/20 animate-pulse" />}
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-center">
-                                                    <span className="text-2xl font-black italic text-slate-900">{row.score?.runs_scored || 0}<span className="text-sm opacity-30 mx-1">/</span>{row.score?.wickets_lost || 0}</span>
+                                                <td className="px-8 py-8 text-center">
+                                                    <span className="text-4xl font-black italic text-slate-900">{row.score?.runs_scored || 0}<span className="text-xl opacity-40 mx-2 font-bold">/</span>{row.score?.wickets_lost || 0}</span>
                                                 </td>
-                                                <td className="px-8 py-6 text-center text-slate-500 font-bold font-mono">
+                                                <td className="px-8 py-8 text-center text-slate-700 font-black font-mono text-lg">
                                                     {formatOvers(getBallsFromDecimal(row.score?.overs_played || 0))}
                                                 </td>
-                                                <td className="px-8 py-6 text-right">
+                                                <td className="px-8 py-8 text-right">
                                                     <span className={cn(
-                                                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-2 shadow-sm border",
-                                                        row.isWin ? "bg-primary border-primary text-white shadow-primary/20" : "bg-white border-slate-200 text-slate-400"
+                                                        "px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest inline-flex items-center gap-3 shadow-2xl border-3 transition-all",
+                                                        row.isWin
+                                                            ? "bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 border-green-400 text-white shadow-green-500/50 scale-110 animate-pulse"
+                                                            : "bg-gradient-to-r from-slate-600 to-slate-700 border-slate-500 text-white shadow-slate-500/40"
                                                     )}>
-                                                        {row.isWin ? <CheckCircle2 className="h-3 w-3" /> : null}
-                                                        {row.isWin ? "Winner" : "Runner Up"}
+                                                        {row.isWin ? <Trophy className="h-5 w-5 animate-bounce" /> : <Award className="h-5 w-5" />}
+                                                        {row.isWin ? "🏆 WINNER" : "RUNNER UP"}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -373,30 +383,30 @@ function SummaryCard({ team, score, isLive, isWinner, matchStatus, targetScore }
 
     return (
         <Card className={cn(
-            "rounded-[3rem] border-none shadow-xl overflow-hidden p-10 transition-all relative group",
-            isLive ? "bg-slate-900 text-white scale-105 shadow-primary/20" : "bg-white",
-            isWinner && !isLive && "border-2 border-primary/20 bg-gradient-to-br from-white to-primary/5"
+            "rounded-[3rem] border-3 shadow-2xl overflow-hidden p-12 transition-all relative group",
+            isLive ? "bg-gradient-to-br from-slate-900 to-slate-800 text-white scale-105 shadow-primary/30 border-primary" : "bg-white border-slate-300",
+            isWinner && !isLive && "border-4 border-primary bg-gradient-to-br from-white via-primary/5 to-primary/10"
         )}>
             {isWinner && (
-                <div className="absolute top-0 right-10 bg-primary text-white px-6 py-2 rounded-b-2xl shadow-lg animate-bounce">
-                    <Trophy className="h-5 w-5" />
+                <div className="absolute top-0 right-10 bg-gradient-to-r from-primary to-primary/80 text-white px-8 py-3 rounded-b-3xl shadow-xl animate-bounce">
+                    <Trophy className="h-6 w-6" />
                 </div>
             )}
 
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
                 <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2 opacity-80">Competing Team</p>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-primary mb-3 opacity-90">Competing Team</p>
                     <h3 className={cn(
-                        "text-2xl md:text-4xl font-black italic uppercase leading-tight truncate transition-colors",
+                        "text-3xl md:text-5xl font-black italic uppercase leading-tight truncate transition-colors",
                         isLive ? "text-white" : "text-slate-900 group-hover:text-primary"
                     )}>{team.name}</h3>
 
-                    <div className="mt-4 flex items-center gap-3">
+                    <div className="mt-5 flex items-center gap-4">
                         <div className={cn(
-                            "h-1.5 w-12 rounded-full",
-                            isLive ? "bg-primary animate-pulse" : (hasBatted ? "bg-green-500" : "bg-slate-200")
+                            "h-2 w-16 rounded-full shadow-md",
+                            isLive ? "bg-primary animate-pulse" : (hasBatted ? "bg-green-500" : "bg-slate-300")
                         )} />
-                        <span className="text-[9px] font-black uppercase opacity-40">
+                        <span className="text-xs font-black uppercase opacity-60">
                             {isLive ? "Currently Batting" : (hasBatted ? "Innings Completed" : "Yet to Bat")}
                         </span>
                     </div>
@@ -404,23 +414,23 @@ function SummaryCard({ team, score, isLive, isWinner, matchStatus, targetScore }
 
                 <div className="text-center md:text-right shrink-0">
                     {isUpcoming ? (
-                        <div className="space-y-1">
-                            <p className="text-2xl font-black italic text-slate-300">WAITING</p>
-                            <p className="text-[10px] font-bold opacity-30 uppercase tracking-[0.2em]">INNINGS 2</p>
+                        <div className="space-y-2">
+                            <p className="text-3xl font-black italic text-slate-400">WAITING</p>
+                            <p className="text-xs font-bold opacity-40 uppercase tracking-[0.2em]">INNINGS 2</p>
                         </div>
                     ) : (
                         <>
                             <p className={cn(
-                                "text-5xl md:text-6xl font-black italic leading-none mb-1",
+                                "text-6xl md:text-7xl font-black italic leading-none mb-2",
                                 isLive ? "text-primary" : "text-slate-900"
                             )}>
-                                {score?.runs_scored || 0}<span className="text-3xl opacity-50 mx-1">/</span>{score?.wickets_lost || 0}
+                                {score?.runs_scored || 0}<span className="text-4xl opacity-50 mx-2">/</span>{score?.wickets_lost || 0}
                             </p>
-                            <p className="text-[10px] font-bold opacity-50 uppercase tracking-[0.2em]">
+                            <p className="text-xs font-bold opacity-60 uppercase tracking-[0.2em]">
                                 {formatOvers(balls)} OVERS PLAYED
                             </p>
                             {isLive && targetScore && (
-                                <p className="text-[10px] font-black text-primary mt-2 uppercase tracking-widest">
+                                <p className="text-xs font-black text-primary mt-3 uppercase tracking-widest">
                                     Target: {targetScore}
                                 </p>
                             )}
@@ -430,13 +440,13 @@ function SummaryCard({ team, score, isLive, isWinner, matchStatus, targetScore }
             </div>
 
             {isLive && (
-                <div className="mt-8 flex items-center gap-3">
-                    <div className="bg-primary/20 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 bg-primary rounded-full animate-ping" />
+                <div className="mt-10 flex items-center gap-4">
+                    <div className="bg-primary/20 text-primary px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 border-2 border-primary/30">
+                        <div className="h-2 w-2 bg-primary rounded-full animate-ping" />
                         Live Score Tracking
                     </div>
                     {targetScore && (
-                        <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                        <div className="bg-white/5 border-2 border-white/20 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest">
                             Need {targetScore - (score?.runs_scored || 0)} more
                         </div>
                     )}
@@ -444,8 +454,8 @@ function SummaryCard({ team, score, isLive, isWinner, matchStatus, targetScore }
             )}
 
             {isWinner && !isLive && (
-                <div className="mt-8 bg-primary/10 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" /> Match Winner
+                <div className="mt-10 bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 text-white px-8 py-4 rounded-2xl text-base font-black uppercase tracking-widest w-fit flex items-center gap-4 shadow-2xl shadow-green-500/50 border-3 border-green-400 animate-pulse">
+                    <Trophy className="h-6 w-6 animate-bounce" /> 🏆 MATCH WINNER
                 </div>
             )}
         </Card>
