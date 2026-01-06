@@ -226,7 +226,13 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-end mb-12">
               <div className="space-y-1">
-                <h2 className="text-4xl font-black italic tracking-tighter uppercase">Next Fixtures</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-4xl font-black italic tracking-tighter uppercase">Next Fixtures</h2>
+                  <div className="px-4 py-1.5 bg-primary rounded-2xl shadow-xl shadow-primary/20 flex items-center gap-2">
+                    <span className="h-2 w-2 bg-white rounded-full animate-pulse" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{completedCount} COMPLETED</span>
+                  </div>
+                </div>
                 <p className="text-muted-foreground font-medium">The local circuit schedule</p>
               </div>
               <Button variant="ghost" className="rounded-xl font-bold" asChild>
