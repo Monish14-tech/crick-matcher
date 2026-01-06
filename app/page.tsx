@@ -143,12 +143,6 @@ export default function Home() {
                       <Link href="/schedule">Match Schedule</Link>
                     </Button>
                   </div>
-
-                  <div className="hidden xl:block h-16 w-px bg-slate-200" />
-
-                  <div className="hidden xl:block">
-                    <Odometer value={completedCount} label="Live Games Completed" />
-                  </div>
                 </div>
               </motion.div>
 
@@ -168,7 +162,6 @@ export default function Home() {
 
         {/* Sliding Window (Teams) */}
         <SlidingTeams />
-
 
         {/* Live Match Strip */}
         {liveMatches.length > 0 && (
