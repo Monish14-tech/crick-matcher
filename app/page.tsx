@@ -54,10 +54,9 @@ export default function Home() {
           team_b:teams!team_b_id(id, name),
           ground:grounds(name)
         `)
-        .in('status', ['Scheduled', 'Live'])
-        .order('status', { ascending: false }) // Live first
-        .order('match_date', { ascending: true })
-        .limit(6)
+        .in('status', ['Scheduled', 'Live', 'Completed'])
+        .order('match_date', { ascending: false })
+        .limit(12)
 
       if (matchData) {
         // Fetch scores for these matches
@@ -100,7 +99,7 @@ export default function Home() {
   }, [])
 
   const liveMatches = matches.filter(m => m.status === 'Live')
-  const scheduledMatches = matches.filter(m => m.status === 'Scheduled')
+  const otherMatches = matches.filter(m => m.status !== 'Live')
 
   return (
     <div className="flex flex-col gap-0 pb-20 overflow-hidden bg-slate-50">
@@ -253,7 +252,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            ) : scheduledMatches.length > 0 ? (
+            ) : otherMatches.length > 0 ? (
               <motion.div
                 initial="hidden"
                 whileInView="show"
@@ -267,10 +266,11 @@ export default function Home() {
                 }}
                 className="grid grid-cols-1 md:grid-cols-3 gap-8"
               >
-                {scheduledMatches.map((match) => (
+                {otherMatches.map((match) => (
                   <motion.div key={match.id} variants={{ hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0 } }}>
                     <MatchCard
                       id={match.id}
+                      status={match.status}
                       teamA={match.team_a?.name || "Team A"}
                       teamB={match.team_b?.name || "Team B"}
                       ground={match.ground?.name || "Stadium"}
@@ -282,55 +282,12 @@ export default function Home() {
                 ))}
               </motion.div>
             ) : (
-              <div className="space-y-12">
-                <div className="text-center py-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" aria-hidden="true" />
-                  <p className="text-muted-foreground font-bold italic">No upcoming encounters fixed yet.</p>
-                  <Button className="mt-8 rounded-2xl font-black h-12 shadow-xl" asChild>
-                    <Link href="/admin/matches/new" aria-label="Schedule a new match">Schedule Match</Link>
-                  </Button>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-0.5 flex-grow bg-slate-100" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sample Preview</span>
-                    <div className="h-0.5 flex-grow bg-slate-100" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 opacity-60">
-                    <MatchCard
-                      id="sample-1"
-                      teamA="Titans XI"
-                      teamB="Royal Strikers"
-                      ground="Standard Arena"
-                      date="24 Jan"
-                      time="10:00"
-                      format="T20"
-                    />
-                    <div className="hidden md:block">
-                      <MatchCard
-                        id="sample-2"
-                        teamA="Warriors CC"
-                        teamB="Lions United"
-                        ground="Green Park"
-                        date="25 Jan"
-                        time="14:30"
-                        format="T10"
-                      />
-                    </div>
-                    <div className="hidden md:block">
-                      <MatchCard
-                        id="sample-3"
-                        teamA="Desert Storm"
-                        teamB="Coastal Kings"
-                        ground="Ocean view"
-                        date="26 Jan"
-                        time="09:00"
-                        format="ODI"
-                      />
-                    </div>
-                  </div>
-                </div>
+              <div className="text-center py-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" aria-hidden="true" />
+                <p className="text-muted-foreground font-bold italic">No matches scheduled at the moment.</p>
+                <Button className="mt-8 rounded-2xl font-black h-12 shadow-xl" asChild>
+                  <Link href="/admin/matches/new" aria-label="Schedule a new match">Schedule Match</Link>
+                </Button>
               </div>
             )}
           </div>
@@ -401,13 +358,18 @@ function FeatureCard({ icon: Icon, title, description, link, accent }: any) {
   )
 }
 
-function MatchCard({ id, teamA, teamB, ground, date, time, format }: any) {
+function MatchCard({ id, teamA, teamB, ground, date, time, format, status }: any) {
   return (
-    <Card className="overflow-hidden border-none shadow-xl group hover:shadow-2xl transition-all rounded-[2.5rem] flex flex-col h-full bg-white">
+    <Card className="overflow-hidden border-none shadow-xl group hover:shadow-2xl transition-all rounded-[2.5rem] flex flex-col h-full bg-white relative">
       <div className="bg-slate-900 px-6 py-2 flex justify-between items-center text-[10px] font-black tracking-widest uppercase text-white/40">
         <span className="text-primary">{format} CLASH</span>
         <span>{date}</span>
       </div>
+      {status === 'Completed' && (
+        <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest z-10 shadow-lg">
+          Completed
+        </div>
+      )}
       <CardHeader className="text-center p-8 pb-4">
         <div className="flex justify-center items-center gap-6">
           <div className="space-y-3 flex-1">
