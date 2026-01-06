@@ -60,6 +60,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const [scores, setScores] = useState<MatchScore[]>([])
     const [events, setEvents] = useState<any[]>([])
     const [players, setPlayers] = useState<any[]>([])
+    const [activeState, setActiveState] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
     const fetchData = async (isInitial = false) => {
@@ -76,6 +77,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
             const { data: p } = await supabase.from('players').select('*').in('team_id', [m?.team_a_id, m?.team_b_id])
             setPlayers(p || [])
+
+            const { data: ast } = await supabase.from('match_active_state').select('*').eq('match_id', id).single()
+            setActiveState(ast || null)
         } catch (err) { console.error(err) }
         setLoading(false)
     }
@@ -134,6 +138,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     const totalWickets = scores.reduce((sum, s) => sum + s.wickets_lost, 0)
     const totalFours = events.filter(e => e.runs_batter === 4).length
     const totalSixes = events.filter(e => e.runs_batter === 6).length
+
+    const firstInningsScore = scores.find(s => s.is_first_innings)
+    const currentTarget = firstInningsScore ? firstInningsScore.runs_scored + 1 : null
 
     return (
         <div className="min-h-screen bg-slate-100/50">
@@ -283,13 +290,17 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                         team={match.team_a}
                         score={teamAScore}
                         isWinner={match.winner_id === match.team_a_id}
-                        isLive={events[events.length - 1]?.innings_no === (teamAScore?.is_first_innings ? 1 : 2) && match.status === 'Live'}
+                        isLive={activeState?.batting_team_id === match.team_a_id && match.status === 'Live'}
+                        matchStatus={match.status}
+                        targetScore={(!teamAScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
                     <SummaryCard
                         team={match.team_b}
                         score={teamBScore}
                         isWinner={match.winner_id === match.team_b_id}
-                        isLive={events[events.length - 1]?.innings_no === (teamBScore?.is_first_innings ? 1 : 2) && match.status === 'Live'}
+                        isLive={activeState?.batting_team_id === match.team_b_id && match.status === 'Live'}
+                        matchStatus={match.status}
+                        targetScore={(!teamBScore?.is_first_innings && currentTarget) ? currentTarget : null}
                     />
                 </div>
 
@@ -311,35 +322,88 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     )
 }
 
-function SummaryCard({ team, score, isLive, isWinner }: any) {
+function SummaryCard({ team, score, isLive, isWinner, matchStatus, targetScore }: any) {
     const balls = getBallsFromDecimal(score?.overs_played || 0)
+    const hasBatted = !!score
+    const isUpcoming = matchStatus === 'Live' && !isLive && !hasBatted
+
     return (
         <Card className={cn(
             "rounded-[3rem] border-none shadow-xl overflow-hidden p-10 transition-all relative group",
-            isLive ? "bg-slate-900 text-white scale-105" : "bg-white",
+            isLive ? "bg-slate-900 text-white scale-105 shadow-primary/20" : "bg-white",
             isWinner && !isLive && "border-2 border-primary/20 bg-gradient-to-br from-white to-primary/5"
         )}>
             {isWinner && (
-                <div className="absolute top-0 right-10 bg-primary text-white px-6 py-2 rounded-b-2xl shadow-lg">
+                <div className="absolute top-0 right-10 bg-primary text-white px-6 py-2 rounded-b-2xl shadow-lg animate-bounce">
                     <Trophy className="h-5 w-5" />
                 </div>
             )}
+
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2 opacity-80">Competing Team</p>
-                    <h3 className="text-2xl md:text-3xl font-black italic uppercase leading-tight truncate group-hover:text-primary transition-colors">{team.name}</h3>
+                    <h3 className={cn(
+                        "text-2xl md:text-4xl font-black italic uppercase leading-tight truncate transition-colors",
+                        isLive ? "text-white" : "text-slate-900 group-hover:text-primary"
+                    )}>{team.name}</h3>
+
                     <div className="mt-4 flex items-center gap-3">
-                        <div className={cn("h-1.5 w-12 rounded-full", isLive ? "bg-primary" : "bg-slate-200")} />
-                        <span className="text-[9px] font-black uppercase opacity-40">{isLive ? "Active Squad" : "Standing Squad"}</span>
+                        <div className={cn(
+                            "h-1.5 w-12 rounded-full",
+                            isLive ? "bg-primary animate-pulse" : (hasBatted ? "bg-green-500" : "bg-slate-200")
+                        )} />
+                        <span className="text-[9px] font-black uppercase opacity-40">
+                            {isLive ? "Currently Batting" : (hasBatted ? "Innings Completed" : "Yet to Bat")}
+                        </span>
                     </div>
                 </div>
+
                 <div className="text-center md:text-right shrink-0">
-                    <p className="text-4xl md:text-5xl font-black italic text-primary leading-none mb-1">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
-                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-[0.2em]">{formatOvers(balls)} OVERS</p>
+                    {isUpcoming ? (
+                        <div className="space-y-1">
+                            <p className="text-2xl font-black italic text-slate-300">WAITING</p>
+                            <p className="text-[10px] font-bold opacity-30 uppercase tracking-[0.2em]">INNINGS 2</p>
+                        </div>
+                    ) : (
+                        <>
+                            <p className={cn(
+                                "text-5xl md:text-6xl font-black italic leading-none mb-1",
+                                isLive ? "text-primary" : "text-slate-900"
+                            )}>
+                                {score?.runs_scored || 0}<span className="text-3xl opacity-50 mx-1">/</span>{score?.wickets_lost || 0}
+                            </p>
+                            <p className="text-[10px] font-bold opacity-50 uppercase tracking-[0.2em]">
+                                {formatOvers(balls)} OVERS PLAYED
+                            </p>
+                            {isLive && targetScore && (
+                                <p className="text-[10px] font-black text-primary mt-2 uppercase tracking-widest">
+                                    Target: {targetScore}
+                                </p>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
-            {isLive && <div className="mt-8 flex items-center gap-2 text-[9px] font-black text-primary uppercase bg-primary/5 p-2 rounded-xl w-fit"><div className="h-1.5 w-1.5 bg-primary rounded-full animate-ping" /> Live Status: Active Batting</div>}
-            {isWinner && !isLive && <div className="mt-8 flex items-center gap-2 text-[9px] font-black text-primary uppercase bg-primary/5 p-2 rounded-xl w-fit"><CheckCircle2 className="h-4 w-4" /> Final Status: Winner</div>}
+
+            {isLive && (
+                <div className="mt-8 flex items-center gap-3">
+                    <div className="bg-primary/20 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 bg-primary rounded-full animate-ping" />
+                        Live Score Tracking
+                    </div>
+                    {targetScore && (
+                        <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                            Need {targetScore - (score?.runs_scored || 0)} more
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {isWinner && !isLive && (
+                <div className="mt-8 bg-primary/10 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" /> Match Winner
+                </div>
+            )}
         </Card>
     )
 }
