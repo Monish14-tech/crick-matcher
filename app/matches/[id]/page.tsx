@@ -144,30 +144,56 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                         <ArrowLeft className="h-3 w-3" /> BACK TO SCHEDULE
                     </Link>
 
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-12">
-                        <div className="text-center md:text-left">
-                            <h1 className="text-6xl md:text-9xl font-black italic tracking-tighter uppercase leading-none mb-4">
+                    <div className="grid lg:grid-cols-2 gap-12 items-center">
+                        <div className="text-center lg:text-left">
+                            <h1 className="text-6xl md:text-8xl lg:text-9xl font-black italic tracking-tighter uppercase leading-none mb-6">
                                 MATCH <span className="text-primary">CENTRE</span>
                             </h1>
-                            <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                                <span className="px-4 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10">{match.overs_type}</span>
-                                <span className={cn("px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border", match.status === 'Live' ? "bg-red-500 border-red-500 animate-pulse" : "bg-white/10 border-white/10")}>{match.status}</span>
+                            <div className="flex flex-wrap justify-center lg:justify-start gap-4">
+                                <span className="px-5 py-2 bg-white/5 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 flex items-center gap-2">
+                                    <Clock className="h-3 w-3 text-primary" /> {match.overs_type}
+                                </span>
+                                <span className={cn(
+                                    "px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-lg transition-all",
+                                    match.status === 'Live' ? "bg-red-500 border-red-500 animate-pulse text-white" : "bg-white/5 border-white/10 text-white/70"
+                                )}>
+                                    {match.status}
+                                </span>
                             </div>
                         </div>
 
-                        {match.status === 'Completed' && (
-                            <div className="relative group">
-                                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-amber-500 rounded-[3rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                                <Card className="relative bg-slate-900 border-2 border-primary/50 text-white p-8 rounded-[3rem] shadow-2xl flex flex-col items-center min-w-[320px]">
-                                    <div className="h-16 w-16 bg-primary/20 rounded-full flex items-center justify-center mb-4">
-                                        <Trophy className="h-8 w-8 text-primary" />
+                        <div className="flex justify-center lg:justify-end w-full">
+                            {match.status === 'Completed' ? (
+                                <div className="relative group">
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-primary to-amber-500 rounded-[3rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                                    <Card className="relative bg-slate-900 border-2 border-primary/50 text-white p-8 rounded-[3rem] shadow-2xl flex flex-col items-center min-w-[320px]">
+                                        <div className="h-16 w-16 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+                                            <Trophy className="h-8 w-8 text-primary" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2">Champion</p>
+                                        <h2 className="text-4xl font-black italic uppercase leading-none mb-2 text-center">{winnerName}</h2>
+                                        <p className="text-xs font-bold text-white/60 uppercase tracking-widest">{resultMessage}</p>
+                                    </Card>
+                                </div>
+                            ) : (
+                                <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] w-full max-w-lg shadow-2xl">
+                                    <div className="flex items-center justify-between gap-8">
+                                        <div className="text-center flex-1">
+                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{match.team_a.name}</p>
+                                            <p className="text-4xl font-black italic text-primary">{teamAScore?.runs_scored || 0}/{teamAScore?.wickets_lost || 0}</p>
+                                        </div>
+                                        <div className="h-12 w-px bg-white/10" />
+                                        <div className="text-center flex-1">
+                                            <p className="text-[10px] font-black text-white/40 uppercase mb-2 truncate">{match.team_b.name}</p>
+                                            <p className="text-4xl font-black italic text-primary">{teamBScore?.runs_scored || 0}/{teamBScore?.wickets_lost || 0}</p>
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2">Champion</p>
-                                    <h2 className="text-4xl font-black italic uppercase leading-none mb-2">{winnerName}</h2>
-                                    <p className="text-xs font-bold text-white/60 uppercase tracking-widest">{resultMessage}</p>
-                                </Card>
-                            </div>
-                        )}
+                                    <div className="mt-6 text-center">
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">{resultMessage}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -252,7 +278,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                 )}
 
                 {/* Live High-Level Scorecard (Visual) */}
-                <div className="grid md:grid-cols-2 gap-8 mb-12">
+                <div className="grid md:grid-cols-2 gap-10 mb-12">
                     <SummaryCard
                         team={match.team_a}
                         score={teamAScore}
@@ -298,18 +324,22 @@ function SummaryCard({ team, score, isLive, isWinner }: any) {
                     <Trophy className="h-5 w-5" />
                 </div>
             )}
-            <div className="flex justify-between items-center relative z-10">
-                <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-2">Competing Squad</p>
-                    <h3 className="text-3xl font-black italic uppercase leading-none group-hover:text-primary transition-colors">{team.name}</h3>
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
+                <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2 opacity-80">Competing Team</p>
+                    <h3 className="text-2xl md:text-3xl font-black italic uppercase leading-tight truncate group-hover:text-primary transition-colors">{team.name}</h3>
+                    <div className="mt-4 flex items-center gap-3">
+                        <div className={cn("h-1.5 w-12 rounded-full", isLive ? "bg-primary" : "bg-slate-200")} />
+                        <span className="text-[9px] font-black uppercase opacity-40">{isLive ? "Active Squad" : "Standing Squad"}</span>
+                    </div>
                 </div>
-                <div className="text-right">
-                    <p className="text-5xl font-black italic text-primary">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
-                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest">{formatOvers(balls)} OVERS</p>
+                <div className="text-center md:text-right shrink-0">
+                    <p className="text-4xl md:text-5xl font-black italic text-primary leading-none mb-1">{score?.runs_scored || 0}/{score?.wickets_lost || 0}</p>
+                    <p className="text-[10px] font-bold opacity-50 uppercase tracking-[0.2em]">{formatOvers(balls)} OVERS</p>
                 </div>
             </div>
-            {isLive && <div className="mt-8 flex items-center gap-2 text-[10px] font-black text-primary uppercase"><div className="h-2 w-2 bg-primary rounded-full animate-ping" /> Currently Batting</div>}
-            {isWinner && !isLive && <div className="mt-8 flex items-center gap-2 text-[10px] font-black text-primary uppercase"><CheckCircle2 className="h-4 w-4" /> Match Winner</div>}
+            {isLive && <div className="mt-8 flex items-center gap-2 text-[9px] font-black text-primary uppercase bg-primary/5 p-2 rounded-xl w-fit"><div className="h-1.5 w-1.5 bg-primary rounded-full animate-ping" /> Live Status: Active Batting</div>}
+            {isWinner && !isLive && <div className="mt-8 flex items-center gap-2 text-[9px] font-black text-primary uppercase bg-primary/5 p-2 rounded-xl w-fit"><CheckCircle2 className="h-4 w-4" /> Final Status: Winner</div>}
         </Card>
     )
 }
