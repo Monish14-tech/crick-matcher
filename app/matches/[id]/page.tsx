@@ -120,7 +120,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
     const liveRuns = currentInningsEvents.reduce((sum, e) => sum + (e.runs_batter || 0) + (e.runs_extras || 0), 0)
     const liveWickets = currentInningsEvents.filter(e => e.wicket_type).length
-    const rawLiveBalls = currentInningsEvents.filter(e => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+    const rawLiveBalls = currentInningsEvents.filter(e => !['NO_BALL', 'No Ball'].includes(e.extra_type)).length
     const liveBalls = Math.min(rawLiveBalls, maxMatchBalls)
     const liveOvers = Math.floor(liveBalls / 6) + (liveBalls % 6) / 10
 
@@ -165,7 +165,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                 resultMessage = `${winnerName} won by ${runMargin} runs`
             } else {
                 // Winner batted second, so they won by wickets
-                const wicketsRemaining = 10 - secondInnings.wickets_lost
+                const winningTeamPlayers = players.filter(p => p.team_id === match.winner_id)
+                const totalWicketsAvailable = Math.max(1, winningTeamPlayers.length > 0 ? winningTeamPlayers.length - 1 : 10) // Default to 10 if players not loaded
+                const wicketsRemaining = totalWicketsAvailable - secondInnings.wickets_lost
                 resultMessage = `${winnerName} won by ${wicketsRemaining} wickets`
             }
         } else if (firstInnings && secondInnings && !match.winner_id) {
@@ -479,7 +481,7 @@ function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
 
     const runs = inningsEvents.reduce((sum: number, e: any) => sum + (e.runs_batter || 0) + (e.runs_extras || 0), 0)
     const wickets = inningsEvents.filter((e: any) => e.wicket_type).length
-    const balls = inningsEvents.filter((e: any) => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+    const balls = inningsEvents.filter((e: any) => !['NO_BALL', 'No Ball'].includes(e.extra_type)).length
 
     if (inningsEvents.length === 0) return null
 
@@ -514,8 +516,8 @@ function InningsScorecard({ inningsNo, team, events, players, scores }: any) {
             bowlerStats[e.bowler_id] = { name: players.find((p: any) => p.id === e.bowler_id)?.name, O: 0, B: 0, R: 0, W: 0 }
         }
 
-        if (!e.extra_type || e.extra_type === "BYE" || e.extra_type === "LEG_BYE" || e.wicket_type) {
-            if (e.extra_type !== "WIDE" && e.extra_type !== "NO_BALL") {
+        if (!e.extra_type || ['BYE', 'LEG_BYE', 'Bye', 'Leg Bye', 'WIDE', 'Wide'].includes(e.extra_type) || e.wicket_type) {
+            if (e.extra_type !== "NO_BALL" && e.extra_type !== "No Ball") {
                 bowlerStats[e.bowler_id].B += 1
             }
         }
@@ -684,7 +686,7 @@ function calculateImpactPlayers(events: any[], players: any[]): { topBatter?: Im
             }
             if (e.wicket_type) bowlers[e.bowler_id].W += 1
             bowlers[e.bowler_id].R += (e.runs_batter + (e.extra_type === 'WIDE' || e.extra_type === 'NO_BALL' ? (e.runs_extras || 0) : 0))
-            if (e.extra_type !== 'WIDE' && e.extra_type !== 'NO_BALL') bowlers[e.bowler_id].B += 1
+            if (e.extra_type !== 'NO_BALL' && e.extra_type !== 'No Ball') bowlers[e.bowler_id].B += 1
         }
     })
 

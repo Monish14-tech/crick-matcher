@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
-import { Trophy, Users, Shield, Save, ArrowLeft, Plus, Minus, Zap, User, Target, ChevronDown, ChevronUp, History, RotateCcw, Swords, MousePointer2, PieChart, BarChart3, Trash2, Clock } from "lucide-react"
+import { Trophy, Users, Shield, Save, ArrowLeft, Plus, Minus, Zap, User, Target, ChevronDown, ChevronUp, History, RotateCcw, Swords, MousePointer2, PieChart, BarChart3, Trash2, Clock, Check } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -160,10 +160,29 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         if (!tossWinner || !battingFirst) return;
         setIsStarting(true)
         try {
+            // Update Match Status
             await supabase.from('matches').update({ toss_winner_id: tossWinner, status: 'Live' }).eq('id', id)
-            setActiveState(prev => prev ? { ...prev, batting_team_id: battingFirst } : null)
+
+            // Create initial active state with CORRECT batting team
+            const newState = {
+                match_id: id,
+                batting_team_id: battingFirst,
+                striker_id: null,
+                non_striker_id: null,
+                bowler_id: null,
+                innings_no: 1,
+                current_over: 0,
+                current_ball: 0
+            }
+
+            // Save to DB immediately to persist decision
+            await supabase.from('match_active_state').upsert(newState)
+
+            // Update local state
+            setActiveState(newState)
             setShowTossSelection(false)
-            await fetchData()
+
+            // Do NOT call fetchData() here, as it might race or reset state.
         } catch (err: any) {
             alert(err.message)
         } finally { setIsStarting(false) }
@@ -176,7 +195,10 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
     }
 
     const handleDecisionClick = (decision: 'BAT' | 'BOWL') => {
-        if (!tossWinner) return;
+        if (!tossWinner) {
+            alert("Please select the team that won the toss first!")
+            return
+        }
         if (decision === 'BAT') {
             setBattingFirst(tossWinner)
         } else {
@@ -235,27 +257,33 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
             let nonStriker = { id: activeState.non_striker_id }
             let bowler = { id: activeState.bowler_id }
 
-            // Increment balls for all legal deliveries (Rule 1 & Bug Fix)
-            const isLegalBall = ballType !== "WIDE" && ballType !== "NO_BALL" && ballType !== "Wide" && ballType !== "No Ball"
+            // Increment balls for all deliveries except NO_BALL
+            // User Change: Wide counts as a valid ball in this format. No Ball does not.
+            const isLegalBall = ballType !== "NO_BALL" && ballType !== "No Ball"
             if (isLegalBall) {
                 innings.balls++
             }
 
             // Apply Logic based on Ball Type
+            // Ensure 'runs' is treated as a number to prevent string concatenation
+            const runsVal = Number(runs);
+
             if (ballType === "RUN") {
-                innings.runs += runs;
-                if (runs % 2 !== 0) {
+                innings.runs += runsVal;
+                if (runsVal % 2 !== 0) {
                     let temp = striker.id;
                     striker.id = nonStriker.id;
                     nonStriker.id = temp;
                 }
             } else if (ballType === "WIDE" || ballType === "Wide") {
-                innings.runs += 1 + runs;
+                // Wide: +1 run for wide, + any extra runs run (runsVal)
+                innings.runs += 1 + runsVal;
             } else if (ballType === "NO_BALL" || ballType === "No Ball") {
-                innings.runs += 1 + runs;
+                // No Ball: +1 run for NB, + runsVal off bat
+                innings.runs += 1 + runsVal;
             } else if (ballType === "BYE" || ballType === "LEG_BYE") {
-                innings.runs += runs;
-                if (runs % 2 !== 0) {
+                innings.runs += runsVal;
+                if (runsVal % 2 !== 0) {
                     let temp = striker.id;
                     striker.id = nonStriker.id;
                     nonStriker.id = temp;
@@ -449,17 +477,57 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                     <CardContent className="p-10 space-y-8">
                         <div>
                             <Label className="text-[10px] font-black uppercase text-white/50 mb-4 block">Who won the toss?</Label>
-                            <div className="grid grid-cols-2 gap-4">
-                                {[match.team_a, match.team_b].map(t => (
-                                    <Button key={t.id} variant={tossWinner === t.id ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleTossClick(t.id)}>{t.name}</Button>
-                                ))}
+                            <div className="grid grid-cols-2 gap-4 relative z-10">
+                                {[match.team_a, match.team_b].map(t => {
+                                    const isSelected = tossWinner === t.id
+                                    return (
+                                        <Button
+                                            key={t.id}
+                                            type="button"
+                                            className={cn(
+                                                "h-24 rounded-2xl font-black text-lg transition-all duration-300 border-2",
+                                                isSelected
+                                                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105 z-10"
+                                                    : "bg-slate-800 text-white/50 border-white/10 hover:bg-slate-700 hover:border-white/50 hover:text-white"
+                                            )}
+                                            onClick={() => handleTossClick(t.id)}
+                                        >
+                                            {t.name}
+                                            {isSelected && <div className="absolute -top-3 -right-3 bg-white text-primary rounded-full p-1 shadow-lg"><Check className="h-4 w-4" /></div>}
+                                        </Button>
+                                    )
+                                })}
                             </div>
                         </div>
                         <div>
                             <Label className="text-[10px] font-black uppercase text-white/50 mb-4 block">Decision?</Label>
-                            <div className="grid grid-cols-2 gap-4">
-                                <Button variant={battingFirst === tossWinner && battingFirst !== null ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleDecisionClick('BAT')}>BAT FIRST</Button>
-                                <Button variant={battingFirst !== tossWinner && battingFirst !== null ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleDecisionClick('BOWL')}>BOWL FIRST</Button>
+                            <div className="grid grid-cols-2 gap-4 relative z-10">
+                                <Button
+                                    type="button"
+                                    className={cn(
+                                        "h-24 rounded-2xl font-black text-lg transition-all duration-300 border-2",
+                                        battingFirst === tossWinner && battingFirst !== null
+                                            ? "bg-primary text-primary-foreground border-primary shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105 z-10"
+                                            : "bg-slate-800 text-white/50 border-white/10 hover:bg-slate-700 hover:border-white/50 hover:text-white"
+                                    )}
+                                    onClick={() => handleDecisionClick('BAT')}
+                                >
+                                    BAT FIRST
+                                    {battingFirst === tossWinner && battingFirst !== null && <div className="absolute -top-3 -right-3 bg-white text-primary rounded-full p-1 shadow-lg"><Check className="h-4 w-4" /></div>}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    className={cn(
+                                        "h-24 rounded-2xl font-black text-lg transition-all duration-300 border-2",
+                                        battingFirst !== tossWinner && battingFirst !== null
+                                            ? "bg-primary text-primary-foreground border-primary shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105 z-10"
+                                            : "bg-slate-800 text-white/50 border-white/10 hover:bg-slate-700 hover:border-white/50 hover:text-white"
+                                    )}
+                                    onClick={() => handleDecisionClick('BOWL')}
+                                >
+                                    BOWL FIRST
+                                    {battingFirst !== tossWinner && battingFirst !== null && <div className="absolute -top-3 -right-3 bg-white text-primary rounded-full p-1 shadow-lg"><Check className="h-4 w-4" /></div>}
+                                </Button>
                             </div>
                         </div>
                     </CardContent>
@@ -545,10 +613,19 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                                     <Button key={r} className="h-20 text-3xl font-black rounded-3xl bg-white border-2 border-slate-100 text-slate-900 hover:bg-primary hover:text-white transition-all shadow-xl" onClick={() => logBall(r, "RUN")} disabled={isProcessing}>{r}</Button>
                                 ))}
                                 <Button className="h-20 text-xl font-black rounded-3xl bg-amber-50 text-amber-600 border-2 border-amber-200 hover:bg-amber-500 hover:text-white transition-all" onClick={() => logBall(0, "WIDE")} disabled={isProcessing}>WD</Button>
-                                <Button className="h-20 text-xl font-black rounded-3xl bg-orange-50 text-orange-600 border-2 border-orange-200 hover:bg-orange-500 hover:text-white transition-all" onClick={() => logBall(0, "NO_BALL")} disabled={isProcessing}>NB</Button>
+                                <Button className="h-20 text-xl font-black rounded-3xl bg-orange-50 text-orange-600 border-2 border-orange-200 hover:bg-orange-500 hover:text-white transition-all" onClick={() => {
+                                    const r = prompt("Runs scored on No Ball:", "0");
+                                    if (r !== null) logBall(parseInt(r) || 0, "NO_BALL");
+                                }} disabled={isProcessing}>NB</Button>
                                 <Button className="h-20 text-xl font-black rounded-3xl col-span-2 bg-red-500 text-white shadow-xl shadow-red-200 hover:bg-red-600 transition-all font-black italic tracking-tighter text-2xl" onClick={() => logBall(0, "RUN", true)} disabled={isProcessing}>WICKET</Button>
-                                <Button className="h-14 font-bold rounded-2xl bg-slate-100 text-slate-600 border border-slate-200" onClick={() => logBall(0, "BYE")} disabled={isProcessing}>BYE</Button>
-                                <Button className="h-14 font-bold rounded-2xl bg-slate-100 text-slate-600 border border-slate-200" onClick={() => logBall(0, "LEG_BYE")} disabled={isProcessing}>L-BYE</Button>
+                                <Button className="h-14 font-bold rounded-2xl bg-slate-100 text-slate-600 border border-slate-200" onClick={() => {
+                                    const r = prompt("Enter Bye Runs:", "1");
+                                    if (r !== null) logBall(parseInt(r) || 0, "BYE");
+                                }} disabled={isProcessing}>BYE</Button>
+                                <Button className="h-14 font-bold rounded-2xl bg-slate-100 text-slate-600 border border-slate-200" onClick={() => {
+                                    const r = prompt("Enter Leg-Bye Runs:", "1");
+                                    if (r !== null) logBall(parseInt(r) || 0, "LEG_BYE");
+                                }} disabled={isProcessing}>L-BYE</Button>
                             </div>
                         )}
                     </div>
@@ -561,18 +638,44 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                             </CardHeader>
                             <CardContent className="p-0 flex-grow overflow-y-auto">
                                 <div className="divide-y">
-                                    {recentEvents.map(e => (
-                                        <div key={e.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-8 w-8 bg-slate-900 text-white text-[10px] font-black rounded-full flex items-center justify-center">{e.over_no}.{e.ball_no}</div>
-                                                <div>
-                                                    <p className="text-xs font-black">{e.runs_batter + e.runs_extras} RUNS {e.extra_type ? `(${e.extra_type})` : ''}</p>
-                                                    <p className="text-[10px] text-muted-foreground">{players.find(p => p.id === e.batter_id)?.name}</p>
+                                    {recentEvents.map(e => {
+                                        const isWide = e.extra_type === 'WIDE' || e.extra_type === 'Wide';
+                                        const isNoBall = e.extra_type === 'NO_BALL' || e.extra_type === 'No Ball';
+                                        const isBye = e.extra_type === 'BYE' || e.extra_type === 'Bye';
+                                        const isLegBye = e.extra_type === 'LEG_BYE' || e.extra_type === 'Leg Bye';
+
+                                        let ballLabel = `${e.over_no}.${e.ball_no}`;
+                                        let extraLabel = '';
+                                        let badgeColor = "bg-slate-900";
+
+                                        if (isWide) { ballLabel = "WD"; extraLabel = "Wide"; badgeColor = "bg-amber-500"; }
+                                        else if (isNoBall) { ballLabel = "NB"; extraLabel = "No Ball"; badgeColor = "bg-orange-500"; }
+                                        else if (isBye) { extraLabel = "Bye"; badgeColor = "bg-slate-500"; }
+                                        else if (isLegBye) { extraLabel = "Leg Bye"; badgeColor = "bg-slate-500"; }
+                                        else if (e.wicket_type) { badgeColor = "bg-red-500"; }
+                                        else if ((e.runs_batter + e.runs_extras) >= 4) { badgeColor = "bg-primary"; }
+
+                                        return (
+                                            <div key={e.id} className="p-4 flex items-center justify-between hover:bg-slate-50 animate-in slide-in-from-right-4 fade-in duration-300">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={cn("h-10 w-10 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0", badgeColor)}>
+                                                        {ballLabel}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black uppercase flex items-center gap-2">
+                                                            {e.wicket_type ? "WICKET" : `${e.runs_batter + e.runs_extras} RUNS`}
+                                                            {extraLabel && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{extraLabel}</span>}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                            {e.wicket_type
+                                                                ? `${players.find(p => p.id === e.player_out_id)?.name || 'Batter'} (${e.wicket_type})`
+                                                                : (players.find(p => p.id === e.batter_id)?.name || 'Box Cricket')}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            {e.wicket_type && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-[8px] font-black uppercase">Wicket</span>}
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </CardContent>
                         </Card>
@@ -699,8 +802,18 @@ function getBowlerStats(id: string | null, events: any[], innings: number) {
     if (!id) return null
     const ev = events.filter(e => e.bowler_id === id && e.innings_no === innings)
     const wickets = ev.filter(e => e.wicket_type).length
-    const runs = ev.reduce((s, e) => s + e.runs_batter + e.runs_extras, 0)
-    const legalBalls = ev.filter(e => e.extra_type !== 'Wide' && e.extra_type !== 'No Ball').length
+
+    // Calculate Runs Conceded:
+    // - Include: Runs off bat, Wides, No Balls
+    // - Exclude: Byes, Leg Byes (these are team extras, not bowler's fault)
+    const runs = ev.reduce((s, e) => {
+        const isByeOrLegBye = ['Bye', 'Leg Bye', 'BYE', 'LEG_BYE'].includes(e.extra_type);
+        if (isByeOrLegBye) return s;
+        return s + e.runs_batter + e.runs_extras;
+    }, 0)
+
+    // User Change: Wides count as legal balls in stats too. Only No Balls are excluded.
+    const legalBalls = ev.filter(e => e.extra_type !== 'No Ball' && e.extra_type !== 'NO_BALL').length
     const economy = legalBalls > 0 ? ((runs / legalBalls) * 6).toFixed(2) : "0.00"
     return { main: `${wickets}-${runs}`, sub: `${formatOvers(legalBalls)} OV (Eco: ${economy})` }
 }
