@@ -169,6 +169,23 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         } finally { setIsStarting(false) }
     }
 
+    const handleTossClick = (teamId: string) => {
+        setTossWinner(teamId)
+        // Reset decision if the toss winner changes to ensure valid logic
+        setBattingFirst(null)
+    }
+
+    const handleDecisionClick = (decision: 'BAT' | 'BOWL') => {
+        if (!tossWinner) return;
+        if (decision === 'BAT') {
+            setBattingFirst(tossWinner)
+        } else {
+            // If bowl, the OTHER team bats first
+            const otherTeam = tossWinner === match?.team_a_id ? match?.team_b_id : match?.team_a_id
+            setBattingFirst(otherTeam || null)
+        }
+    }
+
     const handleStartInnings = async () => {
         if (!activeState?.striker_id || !activeState?.non_striker_id || !activeState?.bowler_id) {
             alert("Choose players first!")
@@ -192,8 +209,15 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
         const isExtraBall = ['Wide', 'No Ball'].includes(ballType);
 
         // Guard: Prevent logging if match is already complete or innings should have ended
+        if (match.status === 'Completed') {
+            alert("Match is already completed!")
+            setIsProcessing(false)
+            return
+        }
+
         if (score.balls >= totalOversLimit * 6) {
             alert("This innings is already complete.")
+            setIsProcessing(false) // Fix: reset processing state
             return
         }
 
@@ -280,8 +304,19 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
             const { data: insertedEvent } = await supabase.from('match_events').insert([newEvent]).select().single()
 
-            // Check Innings End (Bug Fix 1 & 4)
-            const maxWickets = 10
+            // Check Innings End
+            // Innings ends when only one batsman remains (total players - 1 wickets)
+            // LOGIC UPDATE: Completely strictly based on TEAM SIZE for Custom Matches.
+            // A team with N players behaves as "All Out" when N-1 wickets fall.
+            // This supports 5-player teams (All out at 4 wickets) or 11-player teams (All out at 10 wickets).
+            const battingTeamPlayers = players.filter(p => p.team_id === activeState.batting_team_id)
+
+            // Fallback: If players aren't loaded properly, assume 11 players (10 wickets) to prevent soft-lock.
+            const totalPlayers = battingTeamPlayers.length > 0 ? battingTeamPlayers.length : 11
+
+            // STRICT LOGIC: All out when only 1 batter remains.
+            const maxWickets = Math.max(1, totalPlayers - 1)
+
             const isAllOut = innings.wickets >= maxWickets
             const isOversComplete = innings.balls >= maxBalls
             const isTargetReached = activeState.innings_no === 2 && targetScore !== null && innings.runs >= targetScore
@@ -295,18 +330,13 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
 
                 const teamAId = match.team_a_id || (match as any).team_a?.id
                 const teamBId = match.team_b_id || (match as any).team_b?.id
-
-                // Determine the first innings team (the one that batted first and set the target)
                 const firstInningsTeamId = activeState.batting_team_id === teamAId ? teamBId : teamAId
 
                 if (innings.runs >= (targetScore || 0)) {
-                    // Second innings team reached/exceeded target - they win
                     winner_id = activeState.batting_team_id
                 } else if (innings.runs < (targetScore || 0)) {
-                    // Second innings team failed to reach target - first innings team wins
                     winner_id = firstInningsTeamId
                 }
-                // If innings.runs === targetScore - 1, it's a tie (winner_id remains null)
 
                 await supabase.from('matches').update({ status, winner_id }).eq('id', id)
                 setShowInningsSummary(true)
@@ -421,15 +451,15 @@ export default function AdminScoringPage({ params }: { params: Promise<{ id: str
                             <Label className="text-[10px] font-black uppercase text-white/50 mb-4 block">Who won the toss?</Label>
                             <div className="grid grid-cols-2 gap-4">
                                 {[match.team_a, match.team_b].map(t => (
-                                    <Button key={t.id} variant={tossWinner === t.id ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => setTossWinner(t.id)}>{t.name}</Button>
+                                    <Button key={t.id} variant={tossWinner === t.id ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleTossClick(t.id)}>{t.name}</Button>
                                 ))}
                             </div>
                         </div>
                         <div>
                             <Label className="text-[10px] font-black uppercase text-white/50 mb-4 block">Decision?</Label>
                             <div className="grid grid-cols-2 gap-4">
-                                <Button variant={battingFirst === tossWinner ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => setBattingFirst(tossWinner || "")}>BAT FIRST</Button>
-                                <Button variant={battingFirst !== tossWinner && tossWinner ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => setBattingFirst(tossWinner === match.team_a_id ? match.team_b_id : match.team_a_id)}>BOWL FIRST</Button>
+                                <Button variant={battingFirst === tossWinner && battingFirst !== null ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleDecisionClick('BAT')}>BAT FIRST</Button>
+                                <Button variant={battingFirst !== tossWinner && battingFirst !== null ? "default" : "secondary"} className="h-16 rounded-2xl font-black" onClick={() => handleDecisionClick('BOWL')}>BOWL FIRST</Button>
                             </div>
                         </div>
                     </CardContent>
@@ -639,7 +669,7 @@ function InningsSummary({ match, activeState, score, players, events, onNext }: 
             </CardContent>
             <CardFooter className="p-16 bg-white/5">
                 <Button className="w-full h-20 rounded-3xl text-2xl font-black italic group" onClick={onNext}>
-                    {isFirst ? "CONTINUE TO 2ND INNINGS" : "BACK TO DASHBOARD"} <Zap className="ml-2 fill-current group-hover:animate-bounce" />
+                    {isFirst ? "CONTINUE TO 2ND INNINGS" : "GO TO MATCH CENTER"} <Zap className="ml-2 fill-current group-hover:animate-bounce" />
                 </Button>
             </CardFooter>
         </Card>
