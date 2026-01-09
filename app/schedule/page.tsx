@@ -91,7 +91,27 @@ export default function SchedulePage() {
                 {loading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {[1, 2, 3, 4, 5, 6].map(i => (
-                            <div key={i} className="h-80 bg-white/5 animate-pulse rounded-[2.5rem]" />
+                            <div key={i} className="glass-card-dark border-white/5 rounded-[2.5rem] overflow-hidden p-8 space-y-8 animate-pulse">
+                                <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                                    <div className="h-4 w-24 bg-white/5 rounded-full" />
+                                    <div className="h-6 w-16 bg-white/10 rounded-xl" />
+                                </div>
+                                <div className="flex justify-between items-center py-4">
+                                    <div className="space-y-3 flex flex-col items-center flex-1">
+                                        <div className="h-20 w-20 rounded-3xl bg-white/10" />
+                                        <div className="h-3 w-16 bg-white/5 rounded-full" />
+                                    </div>
+                                    <div className="h-6 w-6 bg-white/5 rounded-full" />
+                                    <div className="space-y-3 flex flex-col items-center flex-1">
+                                        <div className="h-20 w-20 rounded-3xl bg-white/10" />
+                                        <div className="h-3 w-16 bg-white/5 rounded-full" />
+                                    </div>
+                                </div>
+                                <div className="space-y-4 pt-6 border-t border-white/5">
+                                    <div className="h-4 w-full bg-white/5 rounded-full" />
+                                    <div className="h-4 w-2/3 bg-white/5 rounded-full" />
+                                </div>
+                            </div>
                         ))}
                     </div>
                 ) : filteredMatches.length > 0 ? (
@@ -174,13 +194,24 @@ export default function SchedulePage() {
                 ) : (
                     <div className="glass-card-dark border-white/5 p-32 text-center rounded-[4rem]">
                         <div className="h-24 w-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/10">
-                            <Calendar className="h-10 w-10 text-slate-700" />
+                            {search ? <Search className="h-10 w-10 text-slate-700" /> : <Calendar className="h-10 w-10 text-slate-700" />}
                         </div>
-                        <h3 className="text-3xl font-black italic uppercase italic text-white mb-2">No Battle Scheduled</h3>
-                        <p className="text-slate-500 font-bold max-w-sm mx-auto">The arena is currently silent. Check back soon for the next clash of titans.</p>
-                        <Button className="mt-10 h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
-                            <Link href="/admin/matches/new">Schedule New Battle</Link>
-                        </Button>
+                        <h3 className="text-3xl font-black italic uppercase italic text-white mb-2">
+                            {search ? "Zero Engagements" : "No Battle Scheduled"}
+                        </h3>
+                        <p className="text-slate-500 font-bold max-w-sm mx-auto">
+                            {search ? `No results found for "${search}". Try adjusting your search parameters.` : "The arena is currently silent. Check back soon for the next clash of titans."}
+                        </p>
+                        <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+                            {search ? (
+                                <Button className="h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-white/5 hover:bg-white/10" onClick={() => setSearch("")}>
+                                    Clear Search
+                                </Button>
+                            ) : null}
+                            <Button className="h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
+                                <Link href="/teams">View Collective</Link>
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

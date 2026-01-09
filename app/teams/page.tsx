@@ -136,13 +136,24 @@ export default function TeamsPage() {
                 ) : (
                     <div className="glass-card-dark border-white/5 p-32 text-center rounded-[4rem]">
                         <div className="h-24 w-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/10">
-                            <Users className="h-10 w-10 text-slate-700" />
+                            {search ? <Search className="h-10 w-10 text-slate-700" /> : <Users className="h-10 w-10 text-slate-700" />}
                         </div>
-                        <h3 className="text-3xl font-black italic uppercase italic text-white mb-2">Registry Empty</h3>
-                        <p className="text-slate-500 font-bold max-w-sm mx-auto">No squads have joined the circuit yet. Be the first to establish your legacy.</p>
-                        <Button className="mt-10 h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
-                            <Link href="/teams/register">Register Franchise</Link>
-                        </Button>
+                        <h3 className="text-3xl font-black italic uppercase italic text-white mb-2">
+                            {search ? "Zero Command Found" : "Registry Empty"}
+                        </h3>
+                        <p className="text-slate-500 font-bold max-w-sm mx-auto">
+                            {search ? `No squads match "${search}". Try verifying the name or established title.` : "No squads have joined the circuit yet. Be the first to establish your legacy."}
+                        </p>
+                        <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+                            {search ? (
+                                <Button className="h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-white/5 hover:bg-white/10" onClick={() => setSearch("")}>
+                                    Clear Search
+                                </Button>
+                            ) : null}
+                            <Button className="h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
+                                <Link href="/teams/register">Register Franchise</Link>
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

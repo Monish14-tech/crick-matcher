@@ -90,7 +90,10 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
         if (isInitial) setLoading(true)
         try {
             const { data: m } = await supabase.from('matches').select('*, team_a:teams!team_a_id(*), team_b:teams!team_b_id(*), ground:grounds(*)').eq('id', id).single()
-            if (m) setMatch(m)
+            if (m) {
+                setMatch(m)
+                document.title = `${m.team_a.name} vs ${m.team_b.name} | Live Arena`;
+            }
 
             const { data: s } = await supabase.from('match_scores').select('*').eq('match_id', id)
             setScores(s || [])
@@ -109,6 +112,10 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
     useEffect(() => {
         fetchData(true)
+        // Dynamic title for SEO/UX
+        if (match) {
+            document.title = `${match.team_a.name} vs ${match.team_b.name} | Live Score`;
+        }
         const matchChannel = supabase.channel(`match-updates-${id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `id=eq.${id}` }, () => fetchData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'match_scores', filter: `match_id=eq.${id}` }, () => fetchData())

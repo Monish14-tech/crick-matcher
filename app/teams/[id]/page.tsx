@@ -54,6 +54,9 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
 
                 setTeam(teamData)
                 setPlayers(playersData || [])
+                if (teamData?.name) {
+                    document.title = `${teamData.name} | Roster Hub`;
+                }
             } catch (err) {
                 console.error(err)
             } finally {

@@ -30,14 +30,20 @@ export default function Home() {
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [completedCount, setCompletedCount] = useState(0)
+  const [teamCount, setTeamCount] = useState(0)
 
   useEffect(() => {
     async function fetchStats() {
-      const { count } = await supabase
+      const { count: matchCount } = await supabase
         .from('matches')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Completed')
-      setCompletedCount(count || 0)
+      setCompletedCount(matchCount || 0)
+
+      const { count: tCount } = await supabase
+        .from('teams')
+        .select('*', { count: 'exact', head: true })
+      setTeamCount(tCount || 0)
     }
     fetchStats()
 
@@ -136,8 +142,8 @@ export default function Home() {
 
               <div className="flex items-center gap-4 sm:gap-8 pt-6 sm:pt-8 border-t border-white/5">
                 <div>
-                  <div className="text-2xl sm:text-3xl font-black italic leading-none"><Odometer value={completedCount} /></div>
-                  <div className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider sm:tracking-widest text-slate-500 mt-1 sm:mt-2">MATCHES COMPLETED</div>
+                  <div className="text-2xl sm:text-3xl font-black italic leading-none"><Odometer value={teamCount} /></div>
+                  <div className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider sm:tracking-widest text-slate-500 mt-1 sm:mt-2">ACTIVE FRANCHISES</div>
                 </div>
                 <div className="h-8 sm:h-10 w-px bg-white/10" />
                 <div>
@@ -220,8 +226,11 @@ export default function Home() {
                 <ScheduledMatchCard key={match.id} match={match} />
               ))
             ) : (
-              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-[3.5rem]">
-                <p className="text-slate-500 font-black italic uppercase text-lg">Circuit is currently silent...</p>
+              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-[3.5rem] bg-white/2">
+                <p className="text-slate-500 font-black italic uppercase text-lg mb-6">Circuit is currently silent...</p>
+                <Button className="h-14 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
+                  <Link href="/teams/register">Establish Your Franchise</Link>
+                </Button>
               </div>
             )}
           </div>

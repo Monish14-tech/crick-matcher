@@ -57,7 +57,10 @@ function TournamentContent() {
                 }
 
                 const { data: tData } = await supabase.from('tournaments').select('*').eq('id', tournamentId).single()
-                if (tData) setTournament(tData)
+                if (tData) {
+                    setTournament(tData)
+                    document.title = `${tData.name} | Tournament Center`;
+                }
 
                 const { data: ttData } = await supabase.from('tournament_teams').select('team_id, teams(id, name)').eq('tournament_id', tournamentId)
                 if (ttData) {
@@ -97,14 +100,34 @@ function TournamentContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-8">
-                <div className="relative">
-                    <Trophy className="h-16 w-16 text-primary animate-bounce shadow-[0_0_30px_theme(colors.primary)]" />
-                    <div className="absolute inset-0 bg-primary blur-3xl opacity-20 animate-pulse" />
+            <div className="min-h-screen bg-slate-950 text-slate-100 pb-32 animate-pulse">
+                {/* Hero Skeleton */}
+                <div className="pt-32 pb-48 px-4 max-w-7xl mx-auto space-y-12">
+                    <div className="h-4 w-48 bg-white/5 rounded-full" />
+                    <div className="space-y-6">
+                        <div className="h-10 w-64 bg-white/10 rounded-xl" />
+                        <div className="h-32 w-full max-w-3xl bg-white/10 rounded-3xl" />
+                        <div className="h-6 w-72 bg-white/5 rounded-full" />
+                    </div>
                 </div>
-                <div className="space-y-2 text-center">
-                    <h2 className="text-xl font-black italic uppercase tracking-tighter text-white">Initializing Arena</h2>
-                    <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Compiling War Logs...</p>
+
+                {/* Content Skeleton */}
+                <div className="max-w-7xl mx-auto px-4 -mt-24 grid lg:grid-cols-12 gap-12">
+                    <div className="lg:col-span-4 space-y-10">
+                        <div className="h-[500px] bg-white/5 rounded-[3rem] border border-white/5" />
+                        <div className="h-64 bg-white/5 rounded-[3rem] border border-white/5" />
+                    </div>
+                    <div className="lg:col-span-8 space-y-12">
+                        <div className="flex flex-col gap-4">
+                            <div className="h-2 w-20 bg-primary/20 rounded-full" />
+                            <div className="h-12 w-96 bg-white/10 rounded-2xl" />
+                        </div>
+                        <div className="space-y-6">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="h-44 bg-white/5 rounded-[2.5rem] border border-white/5" />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         )
