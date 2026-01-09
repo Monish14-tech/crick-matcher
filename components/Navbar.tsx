@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Trophy, Calendar, MapPin, Users, Menu, X, Home } from "lucide-react"
+import { Trophy, Calendar, MapPin, Users, Menu, X, Home, Zap, Shield, Activity } from "lucide-react"
 import { useState } from "react"
 import { Button } from "./ui/button"
 
@@ -11,10 +11,10 @@ export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false)
 
     const navLinks = [
-        { name: "Home", href: "/", icon: Home },
-        { name: "Schedule", href: "/schedule", icon: Calendar },
-        { name: "Team Roster", href: "/teams", icon: Users },
-        { name: "Tournament", href: "/tournament", icon: Trophy },
+        { name: "Arena", href: "/", icon: Home },
+        { name: "Match Center", href: "/schedule", icon: Activity },
+        { name: "Franchise", href: "/teams", icon: Users },
+        { name: "League", href: "/tournament", icon: Trophy },
     ]
 
     return (

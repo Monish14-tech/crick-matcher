@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Outfit } from "next/font/google"; // Modern sports typography
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: '--font-inter',
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: '--font-outfit',
+});
 
 export const metadata: Metadata = {
-  title: "Crick Matcher | Professional Cricket Management",
-  description: "Schedule matches, register teams, and manage grounds with ease.",
+  title: "Crick Matcher | Next-Gen Cricket Intelligence",
+  description: "Professional-grade cricket scoring, professional match scheduling, and deep performance analytics for the modern era.",
 };
 
 export default function RootLayout({
@@ -17,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen flex flex-col`} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${outfit.variable}`}>
+      <body className={`${inter.className} min-h-screen flex flex-col antialiased selection:bg-primary selection:text-white`} suppressHydrationWarning>
         <Navbar />
         <main className="flex-grow pt-16">
           {children}

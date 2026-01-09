@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar, MapPin, Search, Filter, ChevronRight, Trophy, Clock } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar, MapPin, Search, Filter, ChevronRight, Trophy, Clock, Swords, ArrowRight } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
 import { SupabaseError } from "@/components/SupabaseError"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
 
 interface Match {
     id: string
@@ -28,24 +30,21 @@ export default function SchedulePage() {
 
     useEffect(() => {
         async function fetchMatches() {
+            setLoading(true)
             const { data, error } = await supabase
                 .from('matches')
                 .select(`
-          *,
-          team_a:teams!team_a_id(name, logo_url),
-          team_b:teams!team_b_id(name, logo_url),
-          ground:grounds(name, location)
-        `)
+                    *,
+                    team_a:teams!team_a_id(name, logo_url),
+                    team_b:teams!team_b_id(name, logo_url),
+                    ground:grounds(name, location)
+                `)
                 .order('match_date', { ascending: true })
 
-            if (error) {
-                console.error("Error fetching matches:", error)
-            } else {
-                setMatches(data || [])
-            }
+            if (error) console.error("Error fetching matches:", error)
+            else setMatches(data || [])
             setLoading(false)
         }
-
         fetchMatches()
     }, [])
 
@@ -55,95 +54,136 @@ export default function SchedulePage() {
     )
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-                <div className="space-y-2">
-                    <h1 className="text-4xl font-extrabold tracking-tight">Match Schedule</h1>
-                    <p className="text-muted-foreground">Stay updated with all upcoming fixtures and tournaments.</p>
-                </div>
-
-                <div className="flex w-full md:w-auto gap-2">
-                    <div className="relative flex-grow md:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search teams..."
-                            className="pl-10"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
+        <div className="min-h-screen bg-slate-950 text-slate-100 pb-32">
+            {/* Immersive Header */}
+            <div className="relative pt-32 pb-24 px-4 overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[120px] -mr-48 -mt-24" />
+                <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-12">
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_theme(colors.primary)]" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500">Arena Fixtures</span>
+                        </div>
+                        <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase leading-[0.85]">
+                            Match <br /><span className="text-gradient-primary">Schedule</span>
+                        </h1>
+                        <p className="text-slate-400 text-sm font-bold max-w-md">Syncing world-class competition across all grounds.</p>
                     </div>
-                    <Button variant="outline" size="icon">
-                        <Filter className="h-4 w-4" />
-                    </Button>
+
+                    <div className="flex w-full md:w-auto gap-3">
+                        <div className="relative flex-grow md:w-80 group">
+                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-primary transition-colors" />
+                            <Input
+                                placeholder="Search Teams..."
+                                className="h-16 pl-14 pr-6 rounded-2xl bg-white/5 border-white/5 text-white font-bold focus:border-primary/50 transition-all placeholder:text-slate-600 outline-none"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                        <Button className="h-16 w-16 rounded-2xl bg-white/5 hover:bg-white/10 border-white/5">
+                            <Filter className="h-5 w-5 text-slate-400" />
+                        </Button>
+                    </div>
                 </div>
             </div>
 
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {[1, 2, 3].map(i => <div key={i} className="h-64 bg-muted animate-pulse rounded-2xl" />)}
-                </div>
-            ) : filteredMatches.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredMatches.map((match) => (
-                        <Card key={match.id} className="overflow-hidden hover:border-primary/50 transition-all group border-border/50">
-                            <div className="bg-muted px-4 py-2 flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{match.overs_type}</span>
-                                <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${match.status === 'Live' ? 'bg-red-100 text-red-600 animate-pulse' :
-                                    match.status === 'Completed' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
-                                    }`}>
-                                    {match.status}
-                                </div>
-                            </div>
-                            <CardContent className="p-6">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div className="text-center space-y-2 flex-1">
-                                        <div className="h-14 w-14 rounded-full bg-slate-100 mx-auto flex items-center justify-center text-xl font-bold text-slate-400 border border-border">
-                                            {match.team_a?.name?.[0]}
+            <div className="max-w-7xl mx-auto px-4 relative z-10">
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="h-80 bg-white/5 animate-pulse rounded-[2.5rem]" />
+                        ))}
+                    </div>
+                ) : filteredMatches.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {filteredMatches.map((match, idx) => (
+                            <motion.div
+                                key={match.id}
+                                initial={{ opacity: 0, y: 30 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                            >
+                                <Card className="glass-card-dark border-white/5 overflow-hidden group hover:border-primary/50 transition-all duration-500 rounded-[2.5rem]">
+                                    <div className="px-6 py-4 bg-white/2 flex justify-between items-center border-b border-white/5 group-hover:bg-primary/5 transition-colors">
+                                        <div className="flex items-center gap-2">
+                                            <Trophy className="h-3 w-3 text-primary" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{match.overs_type} Series</span>
                                         </div>
-                                        <p className="font-bold text-sm truncate max-w-[100px]">{match.team_a?.name}</p>
-                                    </div>
-                                    <div className="px-4 text-xs font-black italic text-muted-foreground">VS</div>
-                                    <div className="text-center space-y-2 flex-1">
-                                        <div className="h-14 w-14 rounded-full bg-slate-100 mx-auto flex items-center justify-center text-xl font-bold text-slate-400 border border-border">
-                                            {match.team_b?.name?.[0]}
+                                        <div className={cn(
+                                            "px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest",
+                                            match.status === 'Live' ? 'bg-red-500 text-white animate-pulse' :
+                                                match.status === 'Completed' ? 'bg-slate-800 text-slate-400' : 'bg-primary/20 text-primary border border-primary/20'
+                                        )}>
+                                            {match.status}
                                         </div>
-                                        <p className="font-bold text-sm truncate max-w-[100px]">{match.team_b?.name}</p>
                                     </div>
-                                </div>
+                                    <CardContent className="p-8">
+                                        <div className="flex justify-between items-center mb-10">
+                                            <div className="text-center space-y-3 flex-1 flex flex-col items-center">
+                                                <div className="h-20 w-20 rounded-3xl bg-white/5 flex items-center justify-center text-3xl font-black text-white italic border border-white/5 shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                                                    {match.team_a?.name?.[0]}
+                                                </div>
+                                                <p className="font-extrabold text-xs uppercase tracking-tighter truncate max-w-[120px] text-slate-200">{match.team_a?.name}</p>
+                                            </div>
+                                            <div className="px-6">
+                                                <Swords className="h-6 w-6 text-slate-800 group-hover:text-primary/50 transition-colors" />
+                                            </div>
+                                            <div className="text-center space-y-3 flex-1 flex flex-col items-center">
+                                                <div className="h-20 w-20 rounded-3xl bg-white/5 flex items-center justify-center text-3xl font-black text-white italic border border-white/5 shadow-2xl group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500">
+                                                    {match.team_b?.name?.[0]}
+                                                </div>
+                                                <p className="font-extrabold text-xs uppercase tracking-tighter truncate max-w-[120px] text-slate-200">{match.team_b?.name}</p>
+                                            </div>
+                                        </div>
 
-                                <div className="space-y-3 pt-4 border-t border-border/50">
-                                    <div className="flex items-center text-sm text-muted-foreground gap-2">
-                                        <Calendar className="h-4 w-4 text-primary" />
-                                        <span>{match.match_date ? new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}</span>
-                                    </div>
-                                    <div className="flex items-center text-sm text-muted-foreground gap-2">
-                                        <Clock className="h-4 w-4 text-primary" />
-                                        <span>{match.match_time ? match.match_time.slice(0, 5) : '00:00'}</span>
-                                    </div>
-                                    <div className="flex items-center text-sm text-muted-foreground gap-2">
-                                        <MapPin className="h-4 w-4 text-primary" />
-                                        <span className="truncate">{match.ground?.name || "Thondamuthur boys high school ground"}</span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                            <div className="p-4 bg-slate-50 border-t border-border/50">
-                                <Button variant="ghost" className="w-full text-xs font-bold uppercase group-hover:bg-primary group-hover:text-primary-foreground transition-all" asChild>
-                                    <Link href={`/matches/${match.id}`}>Match Details</Link>
-                                </Button>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
-            ) : (
-                <Card className="p-20 text-center border-dashed">
-                    <Calendar className="h-16 w-16 mx-auto mb-6 text-muted-foreground opacity-20" />
-                    <h3 className="text-xl font-bold">No matches found</h3>
-                    <p className="text-muted-foreground mt-2">Adjust your search or check back later for new fixtures.</p>
-                    <Button className="mt-6" asChild>
-                        <Link href="/admin/matches/new">Schedule Match (Admin)</Link>
-                    </Button>
-                </Card>
-            )}
+                                        <div className="space-y-4 py-6 border-t border-white/5">
+                                            <div className="flex items-center text-xs font-bold text-slate-400 gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                                    <Calendar className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <span>{match.match_date ? new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : 'DATE TBD'}</span>
+                                            </div>
+                                            <div className="flex items-center text-xs font-bold text-slate-400 gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                                    <Clock className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <span>{match.match_time ? match.match_time.slice(0, 5) : '00:00'} HOURS</span>
+                                            </div>
+                                            <div className="flex items-center text-xs font-bold text-slate-400 gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                                    <MapPin className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <span className="truncate uppercase">{match.ground?.name || "The Pro Arena"}</span>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            className="w-full h-14 mt-6 rounded-2xl bg-white/5 hover:bg-primary hover:text-white border border-white/5 transition-all duration-500 group-hover:shadow-[0_10px_30px_rgba(37,99,235,0.2)]"
+                                            asChild
+                                        >
+                                            <Link href={`/matches/${match.id}`} className="flex items-center justify-center gap-2">
+                                                <span className="font-black italic uppercase tracking-widest text-[10px]">Match Center</span>
+                                                <ArrowRight className="h-3.5 w-3.5" />
+                                            </Link>
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="glass-card-dark border-white/5 p-32 text-center rounded-[4rem]">
+                        <div className="h-24 w-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/10">
+                            <Calendar className="h-10 w-10 text-slate-700" />
+                        </div>
+                        <h3 className="text-3xl font-black italic uppercase italic text-white mb-2">No Battle Scheduled</h3>
+                        <p className="text-slate-500 font-bold max-w-sm mx-auto">The arena is currently silent. Check back soon for the next clash of titans.</p>
+                        <Button className="mt-10 h-16 px-10 rounded-2xl font-black italic uppercase tracking-widest bg-primary hover:scale-105 transition-all" asChild>
+                            <Link href="/admin/matches/new">Schedule New Battle</Link>
+                        </Button>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

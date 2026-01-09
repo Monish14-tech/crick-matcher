@@ -3,12 +3,16 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { Trophy, Calendar, MapPin, Users, ArrowRight, Play, CheckCircle2, Activity, Zap, Clock } from "lucide-react"
+import { Trophy, Calendar, MapPin, Users, ArrowRight, Play, CheckCircle2, Activity, Zap, Clock, Shield, TrendingUp, Swords } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { FeaturedMatchesCarousel } from "@/components/FeaturedMatchesCarousel"
+import { SlidingTicker } from "@/components/SlidingTicker"
+import { Odometer } from "@/components/Odometer"
+import { SlidingTeams } from "@/components/SlidingTeams"
+import { cn } from "@/lib/utils"
 
 interface Match {
   id: string
@@ -19,11 +23,8 @@ interface Match {
   team_a: { name: string }
   team_b: { name: string }
   ground: { name: string }
+  scores?: any[]
 }
-
-import { SlidingTicker } from "@/components/SlidingTicker"
-import { Odometer } from "@/components/Odometer"
-import { SlidingTeams } from "@/components/SlidingTeams"
 
 export default function Home() {
   const [matches, setMatches] = useState<Match[]>([])
@@ -36,10 +37,10 @@ export default function Home() {
         .from('matches')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Completed')
-
       setCompletedCount(count || 0)
     }
     fetchStats()
+
     async function fetchMatches() {
       if (!supabase) {
         setLoading(false)
@@ -59,7 +60,6 @@ export default function Home() {
         .limit(12)
 
       if (matchData) {
-        // Fetch scores for these matches
         const matchIds = matchData.map((m: any) => m.id)
         const { data: scoreData } = await supabase
           .from('match_scores')
@@ -72,344 +72,311 @@ export default function Home() {
         }))
         setMatches(matchesWithScores as any)
       }
-
       setLoading(false)
     }
 
     fetchMatches()
-
-    // Real-time subscription for score updates
-    const channel = supabase
-      .channel('home-score-updates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'match_scores' },
-        () => fetchMatches()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matches' },
-        () => fetchMatches()
-      )
-      .subscribe()
-
-    // Auto-refresh interval (0.5 seconds) for live score tracking
-    const interval = setInterval(() => {
-      fetchMatches()
-    }, 500)
-
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(interval)
-    }
+    const interval = setInterval(fetchMatches, 2000)
+    return () => clearInterval(interval)
   }, [])
 
   const liveMatches = matches.filter(m => m.status === 'Live')
-  const otherMatches = matches.filter(m => m.status !== 'Live')
+  const scheduledMatches = matches.filter(m => m.status === 'Scheduled').slice(0, 6)
 
   return (
-    <div className="flex flex-col gap-0 pb-20 overflow-hidden bg-slate-50">
+    <div className="flex flex-col gap-0 pb-32 overflow-hidden bg-slate-950 text-slate-100">
 
-      {/* Sliding Ticker */}
-      <SlidingTicker />
+      {/* Dynamic Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]" />
+      </div>
 
-      <div className="flex flex-col gap-20">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden pt-20 pb-16 md:pt-32 md:pb-24 hero-gradient">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <motion.div
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8 }}
-                className="flex flex-col space-y-8"
-              >
-                <div className="inline-flex items-center space-x-2 bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-full text-primary text-xs font-black uppercase tracking-widest w-fit">
-                  <img
-                    src="https://img.freepik.com/premium-vector/logo-cricket-club-dark-blue-background_549850-1296.jpg?semt=ais_hybrid&w=740&q=80"
-                    alt="Logo"
-                    className="h-5 w-5 rounded-full object-cover"
-                  />
-                  <span>Next-Gen Match Engine</span>
-                </div>
-                <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9]">
-                  Dominate The <span className="text-primary italic">Pitch.</span>
+      {/* Top Banner Ticker */}
+      <div className="z-50 relative border-b border-white/5 bg-slate-900/50 backdrop-blur-md">
+        <SlidingTicker />
+      </div>
+
+      {/* HERO SECTION - The Big Stage */}
+      <section className="relative min-h-[70vh] md:min-h-[90vh] flex items-center pt-16 md:pt-20 pb-12 md:pb-20 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full">
+          <div className="grid lg:grid-cols-2 gap-8 md:gap-16 items-center">
+
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="space-y-10"
+            >
+              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl backdrop-blur-md">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_theme(colors.emerald.500)]" />
+                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-emerald-400">System Live & Operational</span>
+              </div>
+
+              <div className="space-y-3 sm:space-y-4">
+                <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-9xl font-black italic tracking-tighter leading-[0.85] uppercase">
+                  UNLEASH <br />
+                  <span className="text-gradient-cricket">PRECISION.</span>
                 </h1>
-                <p className="text-xl text-muted-foreground max-w-lg leading-relaxed font-medium">
-                  Professional cricket management for the digital era. Schedule, score, and track performance with absolute precision.
+                <p className="text-base sm:text-lg md:text-xl text-slate-400 font-medium max-w-lg leading-relaxed">
+                  The ultimate arena for local cricket. Capture every run, wicket, and momentum shift with our world-class scoring engine.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-8 items-center">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <Button size="lg" className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl shadow-primary/20" asChild>
-                      <Link href="/teams/register">
-                        Register Team <ArrowRight className="ml-2 h-5 w-5" />
-                      </Link>
-                    </Button>
-                    <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-black rounded-2xl border-2 hover:bg-slate-50" asChild>
-                      <Link href="/schedule">Match Schedule</Link>
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.8 }}
-                className="relative"
-              >
-                <FeaturedMatchesCarousel />
-                <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
-              </motion.div>
-            </div>
-          </div>
-        </section>
-
-        {/* Sliding Window (Teams) */}
-        <SlidingTeams />
-
-        {/* Live Match Strip */}
-        {liveMatches.length > 0 && (
-          <section className="w-full">
-            <div className="max-w-7xl mx-auto px-4">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="h-10 w-10 rounded-2xl bg-red-500/10 flex items-center justify-center">
-                  <Activity className="h-5 w-5 text-red-500 animate-pulse" />
-                </div>
-                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Live Broadcasts</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {liveMatches.map(match => {
-                  const scoreA = (match as any).scores?.find((s: any) => s.team_id === (match as any).team_a_id)
-                  const scoreB = (match as any).scores?.find((s: any) => s.team_id === (match as any).team_b_id)
-
-                  return (
-                    <Link key={match.id} href={`/matches/${match.id}`}>
-                      <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2rem] overflow-hidden group hover:scale-[1.02] transition-transform">
-                        <CardContent className="p-8 flex items-center justify-between gap-8">
-                          <div className="flex-1 text-center">
-                            <p className="text-xl font-black tracking-tighter">{(match as any).team_a.name}</p>
-                            <p className="text-2xl font-black text-primary mt-1">{scoreA ? `${scoreA.runs_scored}/${scoreA.wickets_lost}` : '0/0'}</p>
-                          </div>
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="px-4 py-1 bg-red-500 rounded-full text-[10px] font-black uppercase animate-pulse">LIVE</div>
-                            <div className="text-4xl font-black italic opacity-20">VS</div>
-                          </div>
-                          <div className="flex-1 text-center">
-                            <p className="text-xl font-black tracking-tighter">{(match as any).team_b.name}</p>
-                            <p className="text-2xl font-black text-primary mt-1">{scoreB ? `${scoreB.runs_scored}/${scoreB.wickets_lost}` : '0/0'}</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Quick Actions */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard icon={Users} title="Team Forge" description="Register pro squads and manage roster dynamics." link="/teams/register" accent="blue" />
-            <FeatureCard icon={Zap} title="Live Scoring" description="Real-time match arbitration and analytics." link="/schedule" accent="amber" />
-            <FeatureCard icon={Trophy} title="League Matches" description="Scale from casual games to pro tournaments." link="/tournament" accent="indigo" />
-          </div>
-        </section>
-
-        {/* Upcoming Matches */}
-        <section className="py-12 w-full">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-end mb-12">
-              <div className="space-y-1">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-4xl font-black italic tracking-tighter uppercase">Next Fixtures</h2>
-                  <div className="px-6 py-2.5 bg-slate-900 rounded-2xl shadow-2xl shadow-primary/20 flex items-center gap-3 border-2 border-slate-800">
-                    <span className="h-3 w-3 bg-primary rounded-full animate-pulse shadow-[0_0_10px_theme(colors.primary)]" />
-                    <span className="text-xs font-black text-white uppercase tracking-[0.2em]">{completedCount} COMPLETED</span>
-                  </div>
-                </div>
-                <p className="text-muted-foreground font-medium">The local circuit schedule</p>
-              </div>
-              <Button variant="ghost" className="rounded-xl font-bold" asChild>
-                <Link href="/schedule">Full Calendar <ArrowRight className="ml-2 h-4 w-4" /></Link>
-              </Button>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex flex-col gap-4 p-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
-                    <div className="h-4 w-24 bg-slate-100 animate-pulse rounded-full" />
-                    <div className="flex justify-between items-center py-4">
-                      <div className="h-16 w-16 bg-slate-100 animate-pulse rounded-2xl" />
-                      <div className="h-4 w-8 bg-slate-100 animate-pulse rounded-full" />
-                      <div className="h-16 w-16 bg-slate-100 animate-pulse rounded-2xl" />
-                    </div>
-                    <div className="h-px w-full bg-slate-100" />
-                    <div className="space-y-2">
-                      <div className="h-3 w-32 bg-slate-100 animate-pulse rounded-full" />
-                      <div className="h-3 w-48 bg-slate-100 animate-pulse rounded-full" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : otherMatches.length > 0 ? (
-              <motion.div
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true }}
-                variants={{
-                  hidden: { opacity: 0 },
-                  show: {
-                    opacity: 1,
-                    transition: { staggerChildren: 0.1 }
-                  }
-                }}
-                className="grid grid-cols-1 md:grid-cols-3 gap-8"
-              >
-                {otherMatches.map((match) => (
-                  <motion.div key={match.id} variants={{ hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0 } }}>
-                    <MatchCard
-                      id={match.id}
-                      status={match.status}
-                      teamA={match.team_a?.name || "Team A"}
-                      teamB={match.team_b?.name || "Team B"}
-                      ground={match.ground?.name || "Stadium"}
-                      date={new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                      time={match.match_time?.slice(0, 5) || "00:00"}
-                      format={match.overs_type}
-                    />
-                  </motion.div>
-                ))}
-              </motion.div>
-            ) : (
-              <div className="text-center py-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" aria-hidden="true" />
-                <p className="text-muted-foreground font-bold italic">No matches scheduled at the moment.</p>
-                <Button className="mt-8 rounded-2xl font-black h-12 shadow-xl" asChild>
-                  <Link href="/admin/matches/new" aria-label="Schedule a new match">Schedule Match</Link>
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
+                <Button size="lg" className="h-14 sm:h-16 px-8 sm:px-10 text-base sm:text-lg font-black rounded-xl sm:rounded-2xl bg-white text-slate-950 hover:bg-slate-200 shadow-[0_20px_40px_-12px_rgba(255,255,255,0.2)] transition-all hover:scale-105" asChild>
+                  <Link href="/teams/register">
+                    REGISTER TEAM <Shield className="ml-2 h-4 sm:h-5 w-4 sm:w-5 fill-current" />
+                  </Link>
                 </Button>
+                <Button size="lg" variant="outline" className="h-14 sm:h-16 px-8 sm:px-10 text-base sm:text-lg font-black rounded-xl sm:rounded-2xl border-2 border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10 transition-all font-outfit" asChild>
+                  <Link href="#next-battles">FIXTURES</Link>
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-4 sm:gap-8 pt-6 sm:pt-8 border-t border-white/5">
+                <div>
+                  <div className="text-2xl sm:text-3xl font-black italic leading-none"><Odometer value={completedCount} /></div>
+                  <div className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider sm:tracking-widest text-slate-500 mt-1 sm:mt-2">MATCHES COMPLETED</div>
+                </div>
+                <div className="h-8 sm:h-10 w-px bg-white/10" />
+                <div>
+                  <div className="text-2xl sm:text-3xl font-black italic leading-none">99.9%</div>
+                  <div className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider sm:tracking-widest text-slate-500 mt-1 sm:mt-2">SYNC ACCURACY</div>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, rotate: 2 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="relative hidden lg:block lg:translate-x-20"
+            >
+              <div className="relative z-10 glass-card-dark p-6 rounded-[3rem] shadow-2xl scale-110">
+                <FeaturedMatchesCarousel />
+              </div>
+              {/* Decorative Rings */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border border-white/5 rounded-full pointer-events-none" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] border border-white/5 rounded-full pointer-events-none opacity-50" />
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* LIVE ACTION BAR */}
+      <AnimatePresence>
+        {liveMatches.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative z-20 -mt-10 mb-20 px-4"
+          >
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center gap-3 mb-6 px-4">
+                <span className="h-3 w-3 rounded-full bg-rose-500 animate-ping" />
+                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-white">Live Broadcast Network</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {liveMatches.map(match => (
+                  <LiveMatchStrip key={match.id} match={match} />
+                ))}
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      {/* TEAM SHOWCASE SLIDER */}
+      <section className="py-20 bg-slate-900/30 border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-4 mb-10 text-center">
+          <h2 className="text-xs font-black uppercase tracking-[0.5em] text-slate-500 mb-2">The Pro Circuit</h2>
+          <p className="text-3xl font-black italic uppercase tracking-tighter">Elite Rosters Online</p>
+        </div>
+        <SlidingTeams />
+      </section>
+
+      {/* NEXT FIXTURES GRID */}
+      <section id="next-battles" className="py-32 relative">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-16">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
+                <Calendar className="h-3 w-3 text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Season Schedule</span>
+              </div>
+              <h2 className="text-5xl md:text-6xl font-black italic uppercase tracking-tighter">Next <span className="text-slate-500">Battles</span></h2>
+            </div>
+            <Button variant="ghost" className="h-14 px-8 rounded-2xl font-black text-slate-400 hover:text-white transition-colors" asChild>
+              <Link href="/schedule">VIEW CALENDAR <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {loading ? (
+              [1, 2, 3].map(i => <div key={i} className="h-64 rounded-[2.5rem] bg-white/5 animate-pulse border border-white/5" />)
+            ) : scheduledMatches.length > 0 ? (
+              scheduledMatches.map(match => (
+                <ScheduledMatchCard key={match.id} match={match} />
+              ))
+            ) : (
+              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-[3.5rem]">
+                <p className="text-slate-500 font-black italic uppercase text-lg">Circuit is currently silent...</p>
               </div>
             )}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Stats / CTA */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-12">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="bg-slate-900 rounded-[3rem] p-12 md:p-20 flex flex-col md:flex-row items-center justify-between text-white relative overflow-hidden shadow-2xl"
-          >
-            <div className="absolute top-0 right-0 w-1/3 h-full bg-primary/20 bg-primary/10 skew-x-12 translate-x-1/2" />
-            <div className="space-y-6 mb-12 md:mb-0 md:max-w-xl relative z-10">
-              <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter leading-tight">Elevate Your <br />Cricket Ecosystem.</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                <CheckItem text="Live Real-time Scoring" />
-                <CheckItem text="Pro Performance Tracking" />
-                <CheckItem text="Automated League Fixtures" />
-                <CheckItem text="Match Broadcast Center" />
-              </div>
+      {/* QUICK CORE ACTIONS */}
+      <section className="max-w-7xl mx-auto px-4 py-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <CoreActionCard
+            icon={Shield}
+            title="Team Forge"
+            desc="Deploy pro squads and manage roster dynamics."
+            link="/teams/register"
+            color="from-blue-600 to-indigo-700"
+          />
+          <CoreActionCard
+            icon={Activity}
+            title="Live Arbitration"
+            desc="Real-time match scoring and ball-by-ball logic."
+            link="/admin"
+            color="from-amber-500 to-orange-600"
+          />
+          <CoreActionCard
+            icon={Trophy}
+            title="Tournament Arena"
+            desc="Construct leagues and dominate professional circuits."
+            link="/admin"
+            color="from-emerald-500 to-teal-600"
+          />
+        </div>
+      </section>
+
+      {/* FINAL CTA - IMMERSIVE OVERLAY */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20">
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          className="relative rounded-[2rem] sm:rounded-[3rem] md:rounded-[4rem] overflow-hidden bg-gradient-to-br from-primary via-indigo-700 to-slate-900 min-h-[400px] sm:min-h-[500px] flex items-center p-6 sm:p-8 md:p-20 shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none" />
+          <div className="relative z-10 w-full grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
+            <div className="space-y-4 sm:space-y-8">
+              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black italic uppercase leading-[0.85] tracking-tighter">
+                DIGITIZE <br />THE GLORY.
+              </h2>
+              <p className="text-sm sm:text-base md:text-lg font-medium opacity-80 leading-relaxed max-w-md">
+                Professional-grade scoring, real-time broadcasting, and deep analytics. Everything you need to manage local cricket at a global standard.
+              </p>
             </div>
-            <Button size="lg" className="h-16 px-12 text-xl font-black rounded-2xl shadow-2xl relative z-10 bg-primary text-white hover:scale-105 transition-transform" asChild>
-              <Link href="/teams/register">Join The Circuit</Link>
-            </Button>
-          </motion.div>
-        </section>
-      </div>
-    </div>
-  )
-}
-
-function CheckItem({ text }: { text: string }) {
-  return (
-    <div className="flex items-center space-x-3">
-      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center">
-        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-      </div>
-      <span className="text-sm font-bold opacity-80 tracking-tight">{text}</span>
-    </div>
-  )
-}
-
-function FeatureCard({ icon: Icon, title, description, link, accent }: any) {
-  const colors: any = {
-    blue: "bg-blue-500",
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    indigo: "bg-indigo-500"
-  }
-  return (
-    <Link href={link}>
-      <Card className="h-full border-none shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 group rounded-[2.5rem] overflow-hidden">
-        <CardContent className="p-8 space-y-6">
-          <div className={`h-16 w-16 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform ${colors[accent]}`}>
-            <Icon className="h-8 w-8" />
+            <div className="flex justify-center md:justify-end">
+              <Button size="lg" className="h-16 sm:h-20 md:h-24 w-full md:w-auto px-12 sm:px-14 md:px-16 text-lg sm:text-xl md:text-2xl font-black rounded-xl sm:rounded-2xl bg-white text-slate-950 hover:bg-slate-100 shadow-2xl transition-all active:scale-95" asChild>
+                <Link href="/teams/register">JOIN NOW</Link>
+              </Button>
+            </div>
           </div>
-          <div>
-            <h3 className="text-xl font-black tracking-tight mb-2">{title}</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed font-medium">
-              {description}
+        </motion.div>
+      </section>
+    </div>
+  )
+}
+
+function LiveMatchStrip({ match }: { match: Match }) {
+  const scoreA = match.scores?.find((s: any) => s.team_id === (match as any).team_a_id)
+  const scoreB = match.scores?.find((s: any) => s.team_id === (match as any).team_b_id)
+
+  return (
+    <Link href={`/matches/${match.id}`} className="block group">
+      <div className="glass-card-dark p-6 rounded-[2.5rem] border-white/10 hover:border-primary/50 transition-all hover:scale-[1.02] shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" /> Live Now
+          </span>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{match.overs_type} Series</span>
+        </div>
+
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex-1 space-y-2">
+            <p className="font-black text-xl italic uppercase tracking-tighter leading-none">{match.team_a.name}</p>
+            <p className="text-2xl font-black text-primary leading-none">
+              {scoreA ? `${scoreA.runs_scored}/${scoreA.wickets_lost}` : '0/0'}
             </p>
           </div>
-        </CardContent>
+          <div className="w-px h-12 bg-white/5 shrink-0" />
+          <div className="flex-1 text-right space-y-2">
+            <p className="font-black text-xl italic uppercase tracking-tighter leading-none">{match.team_b.name}</p>
+            <p className="text-2xl font-black text-slate-400 leading-none">
+              {scoreB ? `${scoreB.runs_scored}/${scoreB.wickets_lost}` : '0/0'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
+          <div className="flex items-center gap-2 text-slate-500 italic text-[10px] font-bold">
+            <MapPin className="h-3 w-3" /> {match.ground.name}
+          </div>
+          <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-1 transition-transform" />
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function ScheduledMatchCard({ match }: { match: Match }) {
+  return (
+    <Link href={`/matches/${match.id}`} className="group">
+      <Card className="glass-card-dark border-white/5 hover:border-white/20 p-8 rounded-[3rem] h-full flex flex-col justify-between transition-all hover:-translate-y-2 bg-slate-900/40">
+        <div className="flex justify-between items-start mb-10">
+          <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/5 text-center min-w-[60px]">
+            <p className="text-[10px] font-black text-slate-500 uppercase leading-none mb-1">
+              {new Date(match.match_date).toLocaleDateString('en-GB', { month: 'short' })}
+            </p>
+            <p className="text-2xl font-black leading-none italic">
+              {new Date(match.match_date).getDate()}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Fixture Start</p>
+            <p className="text-sm font-black italic">{match.match_time?.slice(0, 5)} HRS</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-6 mb-10">
+          <div className="flex-1 space-y-3">
+            <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center font-black italic text-lg">{match.team_a.name[0]}</div>
+            <p className="font-black uppercase italic tracking-tighter text-lg leading-tight">{match.team_a.name}</p>
+          </div>
+          <p className="text-4xl font-black italic opacity-10">VS</p>
+          <div className="flex-1 text-right space-y-3">
+            <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center font-black italic text-lg ml-auto">{match.team_b.name[0]}</div>
+            <p className="font-black uppercase italic tracking-tighter text-lg leading-tight">{match.team_b.name}</p>
+          </div>
+        </div>
+
+        <div className="pt-6 border-t border-white/5 flex items-center gap-3 text-slate-500">
+          <MapPin className="h-4 w-4 text-primary" />
+          <span className="text-[10px] font-black uppercase tracking-widest truncate">{match.ground.name}</span>
+        </div>
       </Card>
     </Link>
   )
 }
 
-function MatchCard({ id, teamA, teamB, ground, date, time, format, status }: any) {
+function CoreActionCard({ icon: Icon, title, desc, link, color }: any) {
   return (
-    <Card className="overflow-hidden border-none shadow-xl group hover:shadow-2xl transition-all rounded-[2.5rem] flex flex-col h-full bg-white relative">
-      <div className="bg-slate-900 px-6 py-2 flex justify-between items-center text-[10px] font-black tracking-widest uppercase text-white/40">
-        <span className="text-primary">{format} CLASH</span>
-        <span>{date}</span>
+    <Link href={link} className="group">
+      <div className="glass-card-dark p-8 rounded-[3rem] border-white/5 hover:border-white/10 transition-all h-full bg-slate-900/40">
+        <div className={cn("h-16 w-16 rounded-[1.5rem] bg-gradient-to-br flex items-center justify-center text-white mb-8 group-hover:scale-110 transition-transform shadow-xl", color)}>
+          <Icon className="h-8 w-8" />
+        </div>
+        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3">{title}</h3>
+        <p className="text-sm text-slate-400 font-medium leading-relaxed mb-6">{desc}</p>
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-primary group-hover:gap-4 transition-all">
+          EXPLORE CORE <ArrowRight className="h-4 w-4" />
+        </div>
       </div>
-      {status === 'Completed' && (
-        <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest z-10 shadow-lg">
-          Completed
-        </div>
-      )}
-      <CardHeader className="text-center p-8 pb-4">
-        <div className="flex justify-center items-center gap-6">
-          <div className="space-y-3 flex-1">
-            <div className="h-20 w-20 bg-slate-50 border-4 border-slate-100 rounded-[1.5rem] mx-auto flex items-center justify-center text-2xl font-black shadow-inner group-hover:scale-110 transition-transform">
-              {teamA[0]}
-            </div>
-            <p className="font-black tracking-tighter text-sm truncate">{teamA}</p>
-          </div>
-          <div className="text-3xl font-black text-slate-100 italic">VS</div>
-          <div className="space-y-3 flex-1">
-            <div className="h-20 w-20 bg-slate-50 border-4 border-slate-100 rounded-[1.5rem] mx-auto flex items-center justify-center text-2xl font-black shadow-inner group-hover:scale-110 transition-transform">
-              {teamB[0]}
-            </div>
-            <p className="font-black tracking-tighter text-sm truncate">{teamB}</p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 px-8 pb-8 flex-grow">
-        <div className="h-px w-full bg-slate-100" />
-        <div className="space-y-2">
-          <div className="flex items-center text-xs text-muted-foreground gap-3 font-bold">
-            <Clock className="h-3.5 w-3.5 text-primary" />
-            <span>{time} HRS</span>
-          </div>
-          <div className="flex items-center text-xs text-muted-foreground gap-3 font-bold truncate">
-            <MapPin className="h-3.5 w-3.5 text-primary" />
-            <span>{ground}</span>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="p-0 border-t">
-        <Button variant="ghost" className="w-full h-14 font-black uppercase tracking-widest text-[10px] rounded-none hover:bg-slate-50" asChild>
-          <Link href={`/matches/${id}`}>Match Center</Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    </Link>
   )
 }

@@ -20,28 +20,28 @@ const featuredMatches: FeaturedMatch[] = [
     {
         id: 1,
         title: "CUSTOM MATCHES",
-        subtitle: "Your Rules, Your Game",
+        subtitle: "Scoring Command",
         image: "/premier_league_match.png",
-        teams: "Create T10, T20, or custom over matches instantly",
-        date: "Create Now",
-        link: "/admin/matches/new"
+        teams: "Full tactical control with bespoke rule sets",
+        date: "Admin Only",
+        link: "/admin"
     },
     {
         id: 2,
         title: "PRO SERIES",
-        subtitle: "Elite Competition",
+        subtitle: "Elite Management",
         image: "/pro_series_match.png",
-        teams: "Join the league of professional squads",
-        date: "View Teams",
-        link: "/teams"
+        teams: "Oversee professional franchise operations",
+        date: "Admin Only",
+        link: "/admin"
     },
     {
         id: 3,
         title: "TOURNAMENT",
         subtitle: "Championship Glory",
         image: "/championship_match.png",
-        teams: "Battle for the ultimate trophy",
-        date: "View Bracket",
+        teams: "Explore the ultimate league bracket",
+        date: "View Now",
         link: "/tournament"
     }
 ]

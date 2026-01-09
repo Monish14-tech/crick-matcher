@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Trophy, Calendar, MapPin, Users, Activity, Plus, Settings, BarChart3, Wand2, Zap, ArrowRight, Star, Trash, LogOut } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Trophy, Calendar, MapPin, Users, Activity, Plus, Settings, BarChart3, Wand2, Zap, ArrowRight, Star, Trash, LogOut, Shield, ChevronRight, LayoutDashboard, Database, Radio } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
 import { SupabaseError } from "@/components/SupabaseError"
 import { cn } from "@/lib/utils"
+import { motion } from "framer-motion"
 
 export default function AdminDashboard() {
     if (!supabase) return <SupabaseError />
@@ -55,15 +56,10 @@ export default function AdminDashboard() {
 
     const handleDeleteMatch = async (id: string) => {
         if (!confirm("Are you sure you want to delete this match permanently?")) return
-
         const { error } = await supabase.from('matches').delete().eq('id', id)
-
         if (!error) {
             setRecentMatches(prev => prev.filter(m => m.id !== id))
             setStats(prev => ({ ...prev, matches: Math.max(0, prev.matches - 1) }))
-        } else {
-            console.error("Error deleting match:", error)
-            alert("Failed to delete match. Check console for details.")
         }
     }
 
@@ -73,318 +69,292 @@ export default function AdminDashboard() {
         if (!error) {
             setTeamsList(prev => prev.filter(t => t.id !== id))
             setStats(prev => ({ ...prev, teams: Math.max(0, prev.teams - 1) }))
-        } else {
-            alert("Error deleting team. Ensure they have no active matches.")
-            console.error(error)
         }
     }
 
     const handleResetAllData = async () => {
-        if (!confirm("CRITICAL WARNING: This will PERMANENTLY ERASE everything—Matches, Teams, Players, Grounds, and Scores. This action CANNOT be undone.\n\nAre you absolutely sure?")) return
-
+        if (!confirm("CRITICAL WARNING: This will PERMANENTLY ERASE everything. Proceed?")) return
         setLoading(true)
         try {
-            console.log("Starting Full System Purge...")
-            const tables = [
-                'match_events', 'player_performances', 'match_scores',
-                'match_active_state', 'tournament_teams', 'matches',
-                'players', 'teams', 'tournaments', 'grounds'
-            ]
-
+            const tables = ['match_events', 'player_performances', 'match_scores', 'match_active_state', 'tournament_teams', 'matches', 'players', 'teams', 'tournaments', 'grounds']
             for (const table of tables) {
-                const { error } = await supabase.from(table).delete().neq(table === 'match_active_state' ? 'match_id' : (table === 'tournament_teams' ? 'team_id' : 'id'), '00000000-0000-0000-0000-000000000000')
-                if (error) {
-                    console.error(`Error deleting from ${table}:`, error)
-                    if (error.code !== '42P01') {
-                        throw new Error(`Failed to delete from ${table}: ${error.message} (Code: ${error.code})`)
-                    }
-                }
+                await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000')
             }
-
-            alert("SUCCESS: System Purged. All data has been wiped.")
             window.location.reload()
-        } catch (err: any) {
-            console.error("Critical Reset Error:", err)
-            alert("RESET FAILED: " + err.message)
+        } catch (err) {
+            console.error(err)
         } finally {
             setLoading(false)
         }
     }
 
-
     return (
-        <div className="max-w-7xl mx-auto px-4 py-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-                <div className="space-y-1">
-                    <h1 className="text-4xl font-extrabold tracking-tight">Admin Portal</h1>
-                    <p className="text-muted-foreground italic">Professional Cricket Ecosystem Management</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 border-red-100"
-                        onClick={() => supabase.auth.signOut()}
-                    >
-                        <LogOut className="mr-2 h-4 w-4" /> Sign Out
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        className="rounded-xl shadow-lg shadow-red-500/20 gap-2 h-9"
-                        onClick={handleResetAllData}
-                        disabled={loading}
-                    >
-                        <Trash className="h-4 w-4" /> Reset Data
-                    </Button>
-                    <Button size="sm" className="rounded-xl shadow-lg shadow-primary/20">
-                        <Plus className="mr-2 h-4 w-4" /> System Status
-                    </Button>
+        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-primary/30 antialiased overflow-x-hidden">
+            {/* Command Header */}
+            <div className="relative pt-16 sm:pt-20 md:pt-24 pb-8 sm:pb-10 md:pb-12 px-4 sm:px-6 overflow-hidden border-b border-white/5 bg-white/[0.02]">
+                <div className="absolute top-0 right-0 w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-primary/5 rounded-full blur-[120px] -mr-64 -mt-32 opacity-50" />
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="flex flex-col gap-6 sm:gap-8">
+                        <div>
+                            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-primary/20 flex items-center justify-center border border-primary/20">
+                                    <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                                </div>
+                                <span className="text-[9px] sm:text-xs font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] text-slate-500">Secure Command Node</span>
+                            </div>
+                            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black italic uppercase tracking-tighter text-white leading-none">
+                                Grid <span className="text-primary italic">Control</span>
+                            </h1>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+                            <Button
+                                variant="outline"
+                                className="h-12 sm:h-14 rounded-xl bg-white/5 border-white/10 hover:bg-white/10 text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] sm:tracking-[0.2em]"
+                                onClick={() => supabase.auth.signOut()}
+                            >
+                                <LogOut className="h-3 w-3 sm:h-4 sm:w-4 mr-2 sm:mr-3" /> Terminate Session
+                            </Button>
+                            <Button
+                                className="h-12 sm:h-14 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-500 text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] sm:tracking-[0.2em]"
+                                onClick={handleResetAllData}
+                                disabled={loading}
+                            >
+                                <Trash className="h-3 w-3 sm:h-4 sm:w-4 mr-2 sm:mr-3" /> Purge System
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            < div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12" >
-                <StatCard title="Total Teams" value={stats.teams} icon={Users} loading={loading} />
-                <StatCard title="Live Matches" value={stats.matches} icon={Activity} loading={loading} highlight />
-                <StatCard title="Players" value={stats.players} icon={BarChart3} loading={loading} />
-            </div >
-
-            {/* Management Actions */}
-            < div className="mb-16" >
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                    <Wand2 className="h-6 w-6 text-primary" /> Management Actions
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <ActionCard
-                        title="Schedule Match"
-                        description="Fix a new fixture."
-                        icon={Calendar}
-                        link="/admin/matches/new"
-                        color="bg-blue-500"
-                    />
-                    <ActionCard
-                        title="Tournament Engine"
-                        description="Auto-generate series fixtures."
-                        icon={Trophy}
-                        link="/admin/tournaments/new"
-                        color="bg-amber-500"
-                        highlight
-                    />
-                    <ActionCard
-                        title="Team Roster"
-                        description="View & Manage Squads."
-                        icon={Users}
-                        link="/admin/teams"
-                        color="bg-indigo-500"
-                    />
+            <div className="max-w-7xl mx-auto px-6 py-12 space-y-20">
+                {/* Tactical Metrics Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard title="Total Teams" value={stats.teams} icon={Users} loading={loading} />
+                    <StatCard title="Active Matches" value={stats.matches} icon={Activity} loading={loading} highlight />
+                    <StatCard title="Franchise Players" value={stats.players} icon={Database} loading={loading} />
+                    <StatCard title="System Grounds" value={stats.grounds} icon={MapPin} loading={loading} />
                 </div>
-            </div >
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                {/* Recent Activity */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold">Recent Match Activity</h2>
-                        <Button variant="ghost" size="sm" asChild>
-                            <Link href="/schedule" className="group">
-                                View Full Schedule <ChevronRight className="ml-1 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                            </Link>
-                        </Button>
+                {/* Operations Core */}
+                <div className="space-y-10">
+                    <div className="flex items-center gap-4">
+                        <div className="h-px flex-1 bg-white/5" />
+                        <h2 className="text-xs font-black uppercase tracking-[0.5em] text-slate-500">Operation Protocols</h2>
+                        <div className="h-px flex-1 bg-white/5" />
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <ActionCard
+                            title="Match Setup"
+                            description="Initialize a new combat engagement."
+                            icon={Plus}
+                            link="/admin/matches/new"
+                            theme="primary"
+                        />
+                        <ActionCard
+                            title="Grand Arena"
+                            description="Configure high-stakes league ladders."
+                            icon={Trophy}
+                            link="/admin/tournaments/new"
+                            theme="primary"
+                            highlight
+                        />
+                        <ActionCard
+                            title="Squad Hub"
+                            description="Audit franchise rosters and identities."
+                            icon={Users}
+                            link="/admin/teams"
+                            theme="slate"
+                        />
+                    </div>
+                </div>
 
-                    <div className="space-y-4">
-                        {recentMatches.length > 0 ? recentMatches.map((match) => (
-                            <Card key={match.id} className="overflow-hidden hover:shadow-xl transition-all border-none bg-card/50 backdrop-blur-sm group">
-                                <CardContent className="p-0">
-                                    <div className="flex items-center p-6">
-                                        <div className="flex-1 flex items-center justify-between gap-8">
-                                            <div className="text-center w-24">
-                                                <div className="h-12 w-12 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center font-bold mb-2 group-hover:bg-primary/10 transition-colors">
+                <div className="grid lg:grid-cols-3 gap-12">
+                    {/* Live Stream / Recent Activity */}
+                    <div className="lg:col-span-2 space-y-8">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Radio className="h-4 w-4 text-red-500 animate-pulse" />
+                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Live Grid Feed</h2>
+                            </div>
+                            <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary" asChild>
+                                <Link href="/schedule">Audit All Fixtures <ChevronRight className="ml-2 h-4 w-4" /></Link>
+                            </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {recentMatches.length > 0 ? recentMatches.map((match) => (
+                                <motion.div
+                                    key={match.id}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className="group"
+                                >
+                                    <div className="glass-card-dark border-white/5 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] hover:bg-white/[0.04] transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+                                        <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 w-full">
+                                            <div className="text-center min-w-[100px] sm:min-w-[120px]">
+                                                <div className="h-12 w-12 sm:h-14 sm:w-14 bg-white/5 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-xl sm:text-2xl italic uppercase tracking-tighter mx-auto mb-2 sm:mb-3 text-primary border border-white/5">
                                                     {match.team_a?.name?.[0]}
                                                 </div>
-                                                <p className="text-xs font-bold truncate">{match.team_a?.name}</p>
+                                                <p className="text-xs font-black uppercase text-slate-400 truncate tracking-tight">{match.team_a?.name}</p>
                                             </div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="text-xs font-black italic opacity-20 uppercase tracking-widest mb-1">VERSUS</div>
-                                                <div className="h-px w-12 bg-border" />
+                                            <div className="flex flex-col items-center gap-1 sm:gap-2 opacity-30">
+                                                <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em]">VS</div>
+                                                <div className="h-px w-8 sm:w-10 bg-white" />
                                             </div>
-                                            <div className="text-center w-24">
-                                                <div className="h-12 w-12 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center font-bold mb-2 group-hover:bg-primary/10 transition-colors">
+                                            <div className="text-center min-w-[100px] sm:min-w-[120px]">
+                                                <div className="h-12 w-12 sm:h-14 sm:w-14 bg-white/5 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-xl sm:text-2xl italic uppercase tracking-tighter mx-auto mb-2 sm:mb-3 text-white border border-white/5">
                                                     {match.team_b?.name?.[0]}
                                                 </div>
-                                                <p className="text-xs font-bold truncate">{match.team_b?.name}</p>
+                                                <p className="text-xs font-black uppercase text-slate-400 truncate tracking-tight">{match.team_b?.name}</p>
                                             </div>
                                         </div>
 
-                                        <div className="mx-8 h-12 w-px bg-border hidden sm:block" />
-
-                                        <div className="hidden sm:block text-center w-32">
-                                            <p className="text-[10px] uppercase font-black text-primary mb-1">{match.overs_type}</p>
-                                            <p className="text-sm font-bold text-muted-foreground">{match.status}</p>
+                                        <div className="hidden md:block text-right">
+                                            <div className="text-sm font-black uppercase tracking-widest text-primary mb-1">{match.overs_type} Series</div>
+                                            <div className="text-xs font-black italic uppercase text-slate-500">{match.status}</div>
                                         </div>
 
-                                        <div className="ml-4 flex gap-2">
-                                            <Button size="sm" className="rounded-xl font-bold gap-2 px-4 h-10 shadow-lg" asChild>
-                                                <Link href={`/admin/matches/${match.id}/score`}>
-                                                    <Zap className="h-4 w-4 fill-current" /> Score
-                                                </Link>
+                                        <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                            <Button size="sm" className="flex-1 sm:flex-none h-12 sm:h-14 px-6 sm:px-8 rounded-xl bg-primary hover:bg-primary/90 text-xs font-black uppercase tracking-widest shadow-[0_8px_24px_-4px_rgba(37,99,235,0.4)]" asChild>
+                                                <Link href={`/admin/matches/${match.id}/score`}>Score Live</Link>
                                             </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                className="rounded-xl h-10 w-10 p-0 shadow-lg hover:bg-red-600"
-                                                onClick={() => handleDeleteMatch(match.id)}
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )) : (
-                            <div className="p-20 text-center border-2 border-dashed rounded-[2rem] opacity-50 bg-muted/30">
-                                <Calendar className="h-12 w-12 mx-auto mb-4" />
-                                <p className="font-medium">No matches scheduled recently.</p>
-                                <Button className="mt-6 rounded-xl font-bold" asChild>
-                                    <Link href="/admin/matches/new">Schedule Match</Link>
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Sidebar */}
-                <div className="space-y-8">
-                    <Card className="bg-primary text-primary-foreground border-none overflow-hidden relative shadow-2xl shadow-primary/20">
-                        <CardContent className="p-8 space-y-4 relative z-10">
-                            <Trophy className="h-12 w-12 opacity-50 mb-2" />
-                            <h3 className="text-2xl font-black leading-tight">Pro Series <br />Engine</h3>
-                            <p className="text-sm opacity-80 leading-relaxed font-medium">Generate balanced round-robin fixtures for your tournament in one click.</p>
-                            <Button variant="secondary" className="w-full font-bold h-12 rounded-xl" asChild>
-                                <Link href="/admin/tournaments/new">Launch Engine</Link>
-                            </Button>
-                        </CardContent>
-                        <Star className="absolute -bottom-10 -right-10 h-48 w-48 opacity-10 pointer-events-none rotate-12" />
-                    </Card>
-
-                    {/* Team Management */}
-                    <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden">
-                        <CardHeader className="bg-slate-50 pb-6 border-b">
-                            <CardTitle className="text-lg flex items-center justify-between">
-                                <span className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Manage Teams</span>
-                                <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-full">{teamsList.length}</span>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 max-h-[400px] overflow-y-auto">
-                            {teamsList.length > 0 ? (
-                                <div className="divide-y divide-border">
-                                    {teamsList.map(team => (
-                                        <div key={team.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center font-black text-xs text-primary shadow-sm">
-                                                    {team.name[0]}
-                                                </div>
-                                                <p className="font-bold text-sm">{team.name}</p>
-                                            </div>
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                                                onClick={() => handleDeleteTeam(team.id)}
+                                                className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl text-slate-600 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                onClick={() => handleDeleteMatch(match.id)}
                                             >
-                                                <Trash className="h-4 w-4" />
+                                                <Trash className="h-5 w-5" />
                                             </Button>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-8 text-center text-sm text-muted-foreground opacity-50">
-                                    No teams registered.
+                                    </div>
+                                </motion.div>
+                            )) : (
+                                <div className="text-center py-24 bg-white/[0.02] rounded-[3rem] border-2 border-dashed border-white/5">
+                                    <h3 className="text-xl font-black italic uppercase text-slate-500 mb-6">No Active Engagements</h3>
+                                    <Button className="h-12 px-8 rounded-xl bg-primary font-black uppercase tracking-widest text-[10px]" asChild>
+                                        <Link href="/admin/matches/new">Initialize New Match</Link>
+                                    </Button>
                                 </div>
                             )}
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden">
-                        <CardHeader className="bg-slate-900 text-white pb-6">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Activity className="h-5 w-5 text-primary" /> System Stats
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="divide-y divide-border">
-                                <div className="p-6 flex justify-between items-center hover:bg-muted/30 transition-colors">
-                                    <span className="text-sm text-muted-foreground font-medium">Database Node</span>
-                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">Online</span>
+                    {/* Sidebar: System Intelligence */}
+                    <div className="space-y-8">
+                        <Card className="bg-primary border-none rounded-[2.5rem] overflow-hidden relative shadow-2xl shadow-primary/30">
+                            <CardContent className="p-10 space-y-8 relative z-10">
+                                <Trophy className="h-14 w-14 text-white opacity-40 mb-2" />
+                                <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white leading-[0.9]">Intelligence <br />Fixture Engine</h3>
+                                <p className="text-sm font-bold uppercase tracking-widest text-white/90 leading-relaxed">Automate professional tournament bracketology and franchise scheduling.</p>
+                                <Button className="w-full h-16 rounded-2xl bg-white text-slate-950 hover:bg-slate-100 font-extrabold uppercase tracking-widest text-xs shadow-2xl" asChild>
+                                    <Link href="/admin/tournaments/new">Launch Engine</Link>
+                                </Button>
+                            </CardContent>
+                            <Star className="absolute -bottom-10 -right-10 h-48 w-48 text-white opacity-10 pointer-events-none rotate-12" />
+                        </Card>
+
+                        <div className="glass-card-dark border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                            <div className="bg-white/5 px-8 py-5 border-b border-white/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Database className="h-4 w-4 text-primary" />
+                                    <span className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Franchise Node</span>
                                 </div>
-                                <div className="p-6 flex justify-between items-center hover:bg-muted/30 transition-colors">
-                                    <span className="text-sm text-muted-foreground font-medium">Scoring API</span>
-                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">Ready</span>
-                                </div>
+                                <span className="bg-primary/20 text-primary text-[10px] font-black px-2.5 py-1 rounded-full">{teamsList.length}</span>
                             </div>
-                        </CardContent>
-                    </Card>
+                            <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                {teamsList.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {teamsList.map(team => (
+                                            <div key={team.id} className="p-4 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 rounded-2xl flex items-center justify-between transition-all group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center font-black text-xs text-primary border border-primary/20">
+                                                        {team.name[0]}
+                                                    </div>
+                                                    <p className="font-black italic uppercase text-sm tracking-tight text-white group-hover:text-primary transition-colors">{team.name}</p>
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-10 w-10 rounded-lg text-slate-600 hover:text-red-500 hover:bg-red-500/10"
+                                                    onClick={() => handleDeleteTeam(team.id)}
+                                                >
+                                                    <Trash className="h-5 w-5" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-10 text-center opacity-20">
+                                        <p className="text-[10px] font-black uppercase">No Roster Detected</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div >
+        </div>
     )
 }
 
-function StatCard({ title, value, icon: Icon, loading, highlight }: { title: string, value: number, icon: any, loading: boolean, highlight?: boolean }) {
+function StatCard({ title, value, icon: Icon, loading, highlight }: any) {
     return (
-        <Card className={cn("overflow-hidden relative border-none shadow-lg rounded-3xl transition-transform hover:-translate-y-1", highlight && "ring-2 ring-primary bg-primary/5")}>
-            <CardContent className="p-8">
-                <div className="flex items-center justify-between relative z-10">
-                    <div className="space-y-2">
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{title}</p>
-                        <h3 className="text-4xl font-black italic">
+        <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 400, damping: 10 }}>
+            <Card className={cn(
+                "glass-card-dark border-white/5 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group",
+                highlight && "border-primary/30"
+            )}>
+                <div className="relative z-10 flex flex-col justify-between h-full">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all",
+                            highlight ? "bg-primary text-white shadow-primary/20" : "bg-white/5 text-slate-500 border border-white/10"
+                        )}>
+                            <Icon className="h-7 w-7" />
+                        </div>
+                        {highlight && <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />}
+                    </div>
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500 mb-1">{title}</p>
+                        <h3 className="text-5xl font-black italic tracking-tighter text-white">
                             {loading ? "..." : value}
                         </h3>
                     </div>
-                    <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center shadow-inner", highlight ? "bg-primary text-white" : "bg-slate-100 text-slate-500")}>
-                        <Icon className="h-7 w-7" />
-                    </div>
                 </div>
-                <Icon className="absolute -bottom-6 -right-6 h-32 w-32 opacity-[0.03] text-slate-900 pointer-events-none" />
-            </CardContent>
-        </Card>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+            </Card>
+        </motion.div>
     )
 }
 
-function ActionCard({ title, description, icon: Icon, link, color, highlight }: { title: string, description: string, icon: any, link: string, color: string, highlight?: boolean }) {
+function ActionCard({ title, description, icon: Icon, link, highlight, theme }: any) {
     return (
         <Link href={link}>
-            <Card className={cn("h-full border-none shadow-xl hover:shadow-2xl transition-all group rounded-[2rem] overflow-hidden", highlight && "bg-slate-900 text-white")}>
-                <CardContent className="p-8 space-y-4">
-                    <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3", color)}>
-                        <Icon className="h-6 w-6" />
+            <Card className={cn(
+                "h-full p-8 rounded-[2.5rem] border shadow-xl hover:shadow-2xl transition-all group overflow-hidden relative",
+                highlight
+                    ? "bg-slate-900 border-primary/20 shadow-primary/10"
+                    : "glass-card-dark border-white/5 hover:bg-white/[0.04]"
+            )}>
+                <div className="relative z-10 space-y-8">
+                    <div className={cn(
+                        "h-20 w-20 rounded-[1.5rem] flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3",
+                        highlight ? "bg-primary text-white shadow-xl shadow-primary/30" : "bg-white/5 text-slate-400 border border-white/5"
+                    )}>
+                        <Icon className="h-10 w-10" />
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-black">{title}</h3>
-                        <p className={cn("text-xs leading-relaxed font-medium", highlight ? "text-slate-400" : "text-muted-foreground")}>{description}</p>
+                    <div>
+                        <h3 className="text-3xl font-black italic uppercase tracking-tighter text-white group-hover:text-primary transition-colors">{title}</h3>
+                        <p className="text-sm font-bold uppercase tracking-widest text-slate-500 mt-3 leading-relaxed">{description}</p>
                     </div>
-                </CardContent>
+                    <div className="flex items-center gap-2 text-primary opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest">Execute Profile</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </div>
+                </div>
+                {highlight && <Star className="absolute -bottom-8 -right-8 h-32 w-32 text-white/5 rotate-12" />}
             </Card>
         </Link>
-    )
-}
-
-function ChevronRight(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="m9 18 6-6-6-6" />
-        </svg>
     )
 }
