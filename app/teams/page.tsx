@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Users, Search, Filter, Phone, ExternalLink, Shield, ArrowRight, Swords } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SupabaseError } from "@/components/SupabaseError"
