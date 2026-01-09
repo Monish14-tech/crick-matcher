@@ -137,7 +137,7 @@ export function FeaturedMatchesCarousel() {
                     onTap={() => {
                         handleNavigation(featuredMatches[currentIndex].link)
                     }}
-                    className="absolute inset-0 rounded-[3rem] overflow-hidden shadow-2xl border-[8px] border-white cursor-pointer"
+                    className="absolute inset-0 rounded-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl border-[4px] md:border-[8px] border-white cursor-pointer"
                 >
                     {/* Background Image */}
                     <div

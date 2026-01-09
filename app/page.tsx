@@ -157,14 +157,14 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9, rotate: 2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 1, delay: 0.2 }}
-              className="relative hidden lg:block lg:translate-x-20"
+              className="relative w-full mt-20 lg:mt-0 lg:translate-x-20"
             >
-              <div className="relative z-10 glass-card-dark p-6 rounded-[3rem] shadow-2xl scale-110">
+              <div className="relative z-10 glass-card-dark p-4 md:p-6 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl lg:scale-110">
                 <FeaturedMatchesCarousel />
               </div>
               {/* Decorative Rings */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border border-white/5 rounded-full pointer-events-none" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] border border-white/5 rounded-full pointer-events-none opacity-50" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border border-white/5 rounded-full pointer-events-none hidden md:block" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] border border-white/5 rounded-full pointer-events-none opacity-50 hidden md:block" />
             </motion.div>
           </div>
         </div>
