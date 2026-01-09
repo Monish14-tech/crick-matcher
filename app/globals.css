@@ -22,7 +22,7 @@
   --color-boundary: 142.1 76.2% 36.3%;
   --color-extra: 37.9 92.1% 50.2%;
 
-  --animate-marquee: marquee 12s linear infinite;
+  --animate-marquee: marquee 8s linear infinite;
 }
 
 @keyframes marquee {
