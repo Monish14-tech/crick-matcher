@@ -21,6 +21,18 @@
   --color-wicket: 346.8 77.2% 49.8%;
   --color-boundary: 142.1 76.2% 36.3%;
   --color-extra: 37.9 92.1% 50.2%;
+
+  --animate-marquee: marquee 20s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 :root {

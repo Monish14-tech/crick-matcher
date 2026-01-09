@@ -18,44 +18,59 @@ export function SlidingTicker() {
         async function fetchData() {
             if (!supabase) return
 
-            // 1. Fetch Live Matches with Scores
-            const { data: liveData } = await supabase
-                .from('matches')
-                .select(`
-          id,
-          team_a:teams!team_a_id(name),
-          team_b:teams!team_b_id(name),
-          match_scores(
-            team_id,
-            runs_scored,
-            wickets_lost,
-            overs_played
-          )
-        `)
-                .eq('status', 'Live')
+            try {
+                // 1. Fetch Live Matches with Scores
+                const { data: liveData, error: liveError } = await supabase
+                    .from('matches')
+                    .select(`
+                        id,
+                        team_a_id,
+                        team_b_id,
+                        team_a:teams!team_a_id(name),
+                        team_b:teams!team_b_id(name)
+                    `)
+                    .eq('status', 'Live')
 
-            // 2. Fetch Upcoming Fixtures
-            const { data: fixtureData } = await supabase
-                .from('matches')
-                .select(`
-          id,
-          match_date,
-          match_time,
-          team_a:teams!team_a_id(name),
-          team_b:teams!team_b_id(name)
-        `)
-                .eq('status', 'Scheduled')
-                .order('match_date', { ascending: true })
-                .limit(5)
+                if (liveError) console.error("Error fetching live matches:", liveError)
 
-            const newItems: TickerItem[] = []
+                // Fetch scores separately for better reliability
+                let liveMatchesWithScores = []
+                if (liveData && liveData.length > 0) {
+                    const matchIds = liveData.map((m: any) => m.id)
+                    const { data: scoresData } = await supabase
+                        .from('match_scores')
+                        .select('*')
+                        .in('match_id', matchIds)
 
-            // Process Live Matches
-            if (liveData) {
-                liveData.forEach((match: any) => {
-                    const score = match.match_scores?.[0]
+                    liveMatchesWithScores = liveData.map((match: any) => ({
+                        ...match,
+                        match_scores: scoresData?.filter((s: any) => s.match_id === match.id) || []
+                    }))
+                }
+
+                // 2. Fetch Upcoming Fixtures
+                const { data: fixtureData, error: fixtureError } = await supabase
+                    .from('matches')
+                    .select(`
+                        id,
+                        match_date,
+                        match_time,
+                        team_a:teams!team_a_id(name),
+                        team_b:teams!team_b_id(name)
+                    `)
+                    .eq('status', 'Scheduled')
+                    .order('match_date', { ascending: true })
+                    .limit(5)
+
+                if (fixtureError) console.error("Error fetching fixtures:", fixtureError)
+
+                const newItems: TickerItem[] = []
+
+                // Process Live Matches
+                liveMatchesWithScores.forEach((match: any) => {
+                    const score = match.match_scores && match.match_scores.length > 0
                         ? `${match.match_scores[0].runs_scored}/${match.match_scores[0].wickets_lost} (${match.match_scores[0].overs_played})`
-                        : '0/0 (0.0)'
+                        : 'LIVE'
 
                     newItems.push({
                         id: match.id,
@@ -64,27 +79,29 @@ export function SlidingTicker() {
                         detail: score
                     })
                 })
-            }
 
-            // Process Fixtures
-            if (fixtureData) {
-                fixtureData.forEach((match: any) => {
-                    newItems.push({
-                        id: match.id,
-                        type: 'fixture',
-                        text: `${match.team_a.name} vs ${match.team_b.name}`,
-                        detail: new Date(match.match_date).toLocaleDateString()
+                // Process Fixtures
+                if (fixtureData) {
+                    fixtureData.forEach((match: any) => {
+                        newItems.push({
+                            id: match.id,
+                            type: 'fixture',
+                            text: `${match.team_a.name} vs ${match.team_b.name}`,
+                            detail: new Date(match.match_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                        })
                     })
-                })
+                }
+
+                // Add Static News
+                newItems.push(
+                    { id: 'news1', type: 'news', text: "Tournament Registration Open", detail: "Register your team now!" },
+                    { id: 'news2', type: 'news', text: "New Season Begins", detail: "Check the schedule" }
+                )
+
+                setItems(newItems)
+            } catch (error) {
+                console.error("Critical error in ticker fetch:", error)
             }
-
-            // Add Static News (since we don't have a news table yet)
-            newItems.push(
-                { id: 'news1', type: 'news', text: "Tournament Registration Open", detail: "Register your team now!" },
-                { id: 'news2', type: 'news', text: "New Season Begins", detail: "Check the schedule for upcoming matches" }
-            )
-
-            setItems(newItems)
         }
 
         fetchData()
@@ -92,7 +109,7 @@ export function SlidingTicker() {
         const channel = supabase
             .channel('ticker-updates')
             .on(
-                'postgres_changes',
+                'postgres_changes' as any,
                 {
                     event: '*',
                     schema: 'public',
@@ -103,7 +120,7 @@ export function SlidingTicker() {
                 }
             )
             .on(
-                'postgres_changes',
+                'postgres_changes' as any,
                 {
                     event: '*',
                     schema: 'public',
@@ -125,8 +142,8 @@ export function SlidingTicker() {
     return (
         <div className="w-full bg-slate-950 border-b border-white/5 overflow-hidden relative z-50 py-1">
             <div className="flex whitespace-nowrap animate-marquee items-center">
-                {/* Render multiple times for seamless loop */}
-                {[...items, ...items, ...items].map((item, i) => (
+                {/* Render twice for seamless loop with -50% translate */}
+                {[...items, ...items].map((item, i) => (
                     <div key={`${item.id}-${i}`} className="flex items-center mx-12 space-x-4 text-sm font-bold">
                         {item.type === 'live' && (
                             <div className="flex items-center space-x-3 bg-red-500/10 px-4 py-1.5 rounded-full border border-red-500/20">
