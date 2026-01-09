@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, use } from "react"
-import { Trophy, Users, Mail, Phone, ArrowLeft, Shield, User, Star, Zap, Target, Swords, Activity, Award, UserPlus, ArrowRight, ExternalLink } from "lucide-react"
+import { Trophy, Users, Mail, Phone, ArrowLeft, Shield, User, Star, Zap, Target, Swords, Activity, Award, UserPlus, ArrowRight, ExternalLink, BarChart3 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
