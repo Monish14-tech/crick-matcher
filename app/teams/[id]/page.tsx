@@ -1,3 +1,4 @@
+// Build trigger: Fix for BarChart3 import
 "use client"
 
 import { useEffect, useState, use } from "react"
